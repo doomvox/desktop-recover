@@ -1,0 +1,11 @@
+The desktop-recover project is a set of extensions for the emacs
+"desktop" library with the primary intent of using it for crash
+recovery purposes.
+
+The primary focus here is development for GNU/Emacs version 23.
+
+## Copyright 2009 Joseph Brenner
+##
+## Author: doom@kzsu.stanford.edu
+## Keywords:
+
