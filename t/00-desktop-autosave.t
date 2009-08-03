@@ -193,51 +193,16 @@ unlink( ".emacs.desktop.lock" );
 
   ($DEBUG) && print STDERR "elisp: $elisp\n";
 
-  # if we weren't told which emacs to use, fall back on letting the
-  # path sort it out.
+  # if we weren't told which emacs to use, let the path sort it out.
   $emacs = 'emacs' unless( $emacs );
 
-  # if ($DEBUG) {
-  #   $emacs .= ' --debug-init';
-  # }
-
-  my $emacs_cmd;
-  my $emacs_cmd_args;      ### TRIAL
-  my @cmd;              ### TRIAL
-  if ( not( $dot_emacs ) ) {
-    $emacs_cmd = "$emacs -q -l $desktop_recover_autosave --eval '$elisp'";
-    ### TRIAL
-    ### $emacs_cmd_args = "-q -l $desktop_recover_autosave --eval $elisp";
-
-    @cmd =
-      ('emacs_test',
-       "-q",
-       "-l", "$desktop_recover_autosave",
-       "--eval", "$elisp",
-      );
-
-  } else {
-    $emacs_cmd =
-      "$emacs -q -l $dot_emacs -l $desktop_recover_autosave --eval '$elisp'";
-    ### TRIAL
-    ### $emacs_cmd_args = "-q -l $dot_emacs -l $desktop_recover_autosave --eval $elisp";
-
-    @cmd =
-      ('emacs_test',
-       "-q",
-       "-l", "$dot_emacs",
-       "-l", "$desktop_recover_autosave",
-       "--eval", "$elisp",
-      );
-  }
-
-  ### TRIAL DEBUG
-#  $emacs_cmd_args = "-q -l $dot_emacs" ;
-#  $emacs_cmd_args = "-q -l $desktop_recover_autosave" ;
-
-###  $emacs_cmd .= ' 2>/dev/null' unless ( $VERBOSE );
-
-  ($DEBUG) && print STDERR "emacs_cmd: $emacs_cmd\n";
+  my @cmd;
+  push @cmd, ('emacs_test',  # just the process label, not the actual binary
+              "-q",);
+  push @cmd, ( "-l", "$dot_emacs") if $dot_emacs;
+  push @cmd, ( "-l", "$desktop_recover_autosave",
+               "--eval", "$elisp",
+             );
 
   if ( my $pid = fork ) {
     # this is parent code
@@ -247,19 +212,14 @@ unlink( ".emacs.desktop.lock" );
   LOOP: while(1) { # TODO loop needs to time out (what if *nothing* is written?)
       my $cutoff = 0;      # increase, if this seems flaky (TODO)
       if ( (-e $buffer_list_file) && ( (-s $buffer_list_file) > $cutoff ) ) {
-        sleep 1; # a little time for things to settle down (paranoia)
-        my $status =
-          kill 1, $pid; # TODO  9 any better than 1? (the only way to be sure)
-        ($DEBUG) && print STDERR "Bang, you're dead, pid $pid! Right?\n";
-        ($DEBUG) && ($status) && print STDERR "return status from kill is: $status\n";
 
-### TRIAL
-#         if ( $status == 1 ) {   # must try harder
-#           my $realpid = find_real_emacs_pid( $pid );
-#           ($DEBUG) &&
-#             print STDERR "But status is $status, so instead we'll kill pid $realpid\n";
-#           kill 1, $realpid;
-#         }
+        sleep 1; # a little time for things to settle down (paranoia)
+
+        my $status =
+          kill 1, $pid;
+
+        ($DEBUG) && print STDERR "Bang, you're dead, pid $pid! Right?\n";
+        ($DEBUG) && print STDERR "return status from kill is: $status\n";
 
         last LOOP;
       }
@@ -270,70 +230,25 @@ unlink( ".emacs.desktop.lock" );
     die "cannot fork: $!" unless defined $pid;
 
     ($DEBUG) && print STDERR "This is the child, about to exec:\n";
-    ($DEBUG) && print STDERR "emacs_cmd: $emacs_cmd\n";
-### TRIAL
-###    exec( $emacs_cmd ); # replaces child with a new emacs: no change in pid
-###    my @cmd = ('emacs_temp', $emacs_cmd_args);
     exec { $emacs } @cmd;
   }
 
-  my @result;
+  # Using "buffer.lst" to pass the output
   open my $fh, '<', $buffer_list_file or die "$!";
-  while ( my $buffer_name = <$fh> ) {
-    chomp( $buffer_name );
-    push @result, $buffer_name;
-    ($DEBUG) && print STDERR "buffer name: $buffer_name\n";
-  }
+  my @result = map{ chomp($_); s{\r$}{}xms; $_ } <$fh>;
+               # stripping CRs is a hack to pass the yary dot emacs
 
-  my @result_sorted = map{ s{\r$}{}xms; $_ } sort @result;
-
-  my @expected = sort qw( wuhn tew thuree foah buffer.lst);
-  # Note: this system uses "buffer.lst" to pass the output
-
-#   is_deeply( \@result_sorted, \@expected,
-#              "$test_name, using $emacs with $dot_emacs");
+  my @expected =  qw( wuhn tew thuree foah buffer.lst);
 
   my $label = "$test_name, using $emacs";
   $label .= " with $dot_emacs" if $dot_emacs;
 
-  ok( is_sub_set_of( \@expected, \@result_sorted), $label)
-    or print STDERR "result: ".
-                    Dumper(\@result_sorted) .
-                    "\nExpected: " .
-                    Dumper(\@expected) . "\n" ;
+  ok( is_sub_set_of( \@expected, \@result), $label)
+    or print STDERR "Result: "   . Dumper(\@result)   . "\n" .
+                    "Expected: " . Dumper(\@expected) . "\n" ;
+
 }
 
-# looks for an emacs child process invoking 'desktop-autosave.el' on
-# the command-line that has a pid exactly one more than the given pid.
-sub find_real_emacs_pid {
-  my $child_pid = shift;
-  my $emacs_cmd_marker = shift || basename( $desktop_recover_autosave );
-  my $subname = ( caller(0) )[3];
-  print STDERR "$subname called...\n";
-
-  my $cmd = "ps ax --width 2000 | egrep emacs | egrep $emacs_cmd_marker";
-  chomp(
-    my @lines = qx{ $cmd }
-  );
-
-  my $pid_pat = qr{  ^
-                     \s*
-                     (\d+?)
-                     \s
-                   }xms;
-
-  my ($candidate_pid, $real_pid);
-  foreach my $line (@lines) {
-    if( $line =~ m{ $pid_pat }xms ) {
-      $candidate_pid = $1;
-      if ( $candidate_pid == ($child_pid + 1) ) {
-        $real_pid = $candidate_pid;
-        return $real_pid;
-      }
-    }
-  }
-  return;
-}
 
 
 # return true if aref1 is a subset of aref2
