@@ -133,6 +133,10 @@ unlink( ".emacs.desktop.lock" );
 
   ok( is_sub_set_of( \@expected, \@buffers ), $label)
     or print STDERR "result: ". Dumper(\@buffers) . "\nExpected: " . Dumper(\@expected) . "\n" ;
+
+  ### TODO I could also check the files on disk to see if they were created,
+  ###      and -- more importantly -- look over the .emacs-desktop file to
+  ###      see if they're all entered there in desktop-create-buffer calls.
 }
 
 # The following code
@@ -142,7 +146,7 @@ unlink( ".emacs.desktop.lock" );
 #    Linux fineline 2.6.24-16-generic #1
 #  but does on this one:
 #    Linux dancer 2.6.27-9-generic #1
-#  (I suspect a kernel bug that's already been fixed)
+#  (kernel bug that's already been fixed?)
 #  There's some additional hackery that tries to find the right pid to
 #  kill if the expected pid doesn't seem to be the right one.
 
@@ -193,19 +197,45 @@ unlink( ".emacs.desktop.lock" );
   # path sort it out.
   $emacs = 'emacs' unless( $emacs );
 
-  if ($DEBUG) {
-    $emacs .= ' --debug-init';
-  }
+  # if ($DEBUG) {
+  #   $emacs .= ' --debug-init';
+  # }
 
   my $emacs_cmd;
+  my $emacs_cmd_args;      ### TRIAL
+  my @cmd;              ### TRIAL
   if ( not( $dot_emacs ) ) {
     $emacs_cmd = "$emacs -q -l $desktop_recover_autosave --eval '$elisp'";
+    ### TRIAL
+    ### $emacs_cmd_args = "-q -l $desktop_recover_autosave --eval $elisp";
+
+    @cmd =
+      ('emacs_test',
+       "-q",
+       "-l", "$desktop_recover_autosave",
+       "--eval", "$elisp",
+      );
+
   } else {
     $emacs_cmd =
       "$emacs -q -l $dot_emacs -l $desktop_recover_autosave --eval '$elisp'";
+    ### TRIAL
+    ### $emacs_cmd_args = "-q -l $dot_emacs -l $desktop_recover_autosave --eval $elisp";
+
+    @cmd =
+      ('emacs_test',
+       "-q",
+       "-l", "$dot_emacs",
+       "-l", "$desktop_recover_autosave",
+       "--eval", "$elisp",
+      );
   }
 
-  $emacs_cmd .= ' 2>/dev/null' unless ( $VERBOSE );
+  ### TRIAL DEBUG
+#  $emacs_cmd_args = "-q -l $dot_emacs" ;
+#  $emacs_cmd_args = "-q -l $desktop_recover_autosave" ;
+
+###  $emacs_cmd .= ' 2>/dev/null' unless ( $VERBOSE );
 
   ($DEBUG) && print STDERR "emacs_cmd: $emacs_cmd\n";
 
@@ -221,13 +251,16 @@ unlink( ".emacs.desktop.lock" );
         my $status =
           kill 1, $pid; # TODO  9 any better than 1? (the only way to be sure)
         ($DEBUG) && print STDERR "Bang, you're dead, pid $pid! Right?\n";
+        ($DEBUG) && ($status) && print STDERR "return status from kill is: $status\n";
 
-        if ( $status == 1 ) {   # must try harder
-          my $realpid = find_real_emacs_pid( $pid );
-          ($DEBUG) &&
-            print STDERR "But status is $status, so instead we'll kill pid $realpid\n";
-          kill 1, $realpid;
-        }
+### TRIAL
+#         if ( $status == 1 ) {   # must try harder
+#           my $realpid = find_real_emacs_pid( $pid );
+#           ($DEBUG) &&
+#             print STDERR "But status is $status, so instead we'll kill pid $realpid\n";
+#           kill 1, $realpid;
+#         }
+
         last LOOP;
       }
     }
@@ -238,7 +271,10 @@ unlink( ".emacs.desktop.lock" );
 
     ($DEBUG) && print STDERR "This is the child, about to exec:\n";
     ($DEBUG) && print STDERR "emacs_cmd: $emacs_cmd\n";
-    exec( $emacs_cmd ); # replaces child with a new emacs: no change in pid
+### TRIAL
+###    exec( $emacs_cmd ); # replaces child with a new emacs: no change in pid
+###    my @cmd = ('emacs_temp', $emacs_cmd_args);
+    exec { $emacs } @cmd;
   }
 
   my @result;
