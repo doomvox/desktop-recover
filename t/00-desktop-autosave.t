@@ -3,7 +3,7 @@
 #   doom@kzsu.stanford.edu     2009/03/29 19:22:34
 
 use Test::More;
-BEGIN { plan tests => 3 };
+BEGIN { plan tests => 4 };
 
 use warnings;
 use strict;
@@ -217,9 +217,7 @@ unlink( ".emacs.desktop.lock" );
 
         my $status =
           kill 1, $pid;
-
-        ($DEBUG) && print STDERR "Bang, you're dead, pid $pid! Right?\n";
-        ($DEBUG) && print STDERR "return status from kill is: $status\n";
+        ($DEBUG) && print STDERR "Bang, you're dead, pid $pid! Right? Kill returned: $status \n";
 
         last LOOP;
       }
@@ -249,7 +247,71 @@ unlink( ".emacs.desktop.lock" );
 
 }
 
+{
+  my $test_name = "Testing desktop-read using new E::R feature that skips -batch";
+  chdir( $tmp_dir );
 
+  # get a known desktop file from archive location
+  unlink( ".emacs.desktop" );
+  my $desktop_file = "$archive_loc/.emacs.desktop";
+  copy( $desktop_file, $tmp_dir );
+
+  # remove any lock so that desktop.el won't ask about it
+  unlink( ".emacs.desktop.lock" );
+
+  # create target files from archive (clean any existing copies first)
+  foreach my $name (@nameos) {
+    unlink( "$name" );
+  }
+  system( "tar xzf $archive_loc/files.tgz" );
+
+  # Pass output from the new emacs through this file
+  my $buffer_list_file = "$tmp_dir/buffer.lst";
+  unlink( $buffer_list_file ) if -e $buffer_list_file;
+
+  # restore the desktop from the right directory.
+  my $elisp_initialize =
+    qq{
+         (desktop-read "$tmp_dir")
+     };
+
+  # write the list of open buffers to current buffer
+  my $elisp =
+    qq{
+           (desktop-recover-autosave-insert-ordinary-buffer-names)
+       };
+  ($DEBUG) && print STDERR "elisp: $elisp\n";
+
+  my @emacs_libs;
+  push @emacs_libs, $dot_emacs if $dot_emacs;
+  push @emacs_libs, $desktop_recover_autosave;
+
+  my $er = Emacs::Run->new({
+                    emacs_libs => \@emacs_libs,
+                 });
+
+  my $result =
+    $er->eval_elisp_full_emacs( {
+         elisp_initialize => $elisp_initialize,
+         output_file      => $buffer_list_file,
+         elisp            => $elisp,
+     }
+   );
+
+  my @expected =  qw( wuhn tew thuree foah buffer.lst);
+
+  my $label = "$test_name, using $emacs";
+  $label .= " with $dot_emacs" if $dot_emacs;
+
+  ok( is_sub_set_of( \@expected, $result, $label) )
+    or print STDERR "Result: "   . Dumper( $result )    . "\n" .
+                    "Expected: " . Dumper( \@expected ) . "\n" ;
+}
+
+
+
+
+# end main code, into the subs.
 
 # return true if aref1 is a subset of aref2
 sub is_sub_set_of {
