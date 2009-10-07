@@ -35,15 +35,15 @@
 (eval-when-compile
   (require 'cl))
 
-; Do you hate pop-up dialog boxes as much as I do?
-(setq use-dialog-box nil)
+;; TODO trying load-library rather than require.  Any improvement? (No)
+;; (require 'desktop)
+(load-library "desktop")
 
 ;; Turning desktop.el off (we'll use it indirectly)
 (desktop-save-mode -1)
 
-;; TODO trying load-library rather than require.  Any improvement? (No)
-;; (require 'desktop)
-(load-library "desktop")
+; Do you hate pop-up dialog boxes as much as I do?
+(setq use-dialog-box nil)
 
 ;; TODO I personally am setting this variable in my emacs_launcher.pl script.
 ;;      where would normal human beings want to set it?
@@ -57,3 +57,6 @@
 (load-library "desktop-recover")
 
 (desktop-recover-interactive)
+
+;; So that we can tell if exit was clean.
+(define-key ctl-x-map "\C-c" 'desktop-recover-autosave-save-buffers-kill-terminal)

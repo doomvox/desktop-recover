@@ -9,10 +9,13 @@ use FindBin qw( $Bin );  # ~/End/Cave/DesktopAutosave/lib/emacs/t/
 
 my $test_config_pl = "$Bin/etc/config.pl";
 
-my $DEBUG   = 0;
-my $VERBOSE = 0;
-$ENV{ TEST_EMACS_DEBUG }   = $DEBUG   if $DEBUG;
-$ENV{ TEST_EMACS_VERBOSE } = $VERBOSE if $VERBOSE;
+
+# can control these settings locally, but can over-ride them with a shell
+# setting of the environment variables.
+my $DEBUG   = 1;
+my $VERBOSE = 1;
+$ENV{ TEST_EMACS_DEBUG }   = $DEBUG   unless defined ( $ENV{ TEST_EMACS_DEBUG } );
+$ENV{ TEST_EMACS_VERBOSE } = $VERBOSE unless defined ( $ENV{ TEST_EMACS_VERBOSE } );
 
 my $config;
 open my $fh, '<', $test_config_pl or die "$!"; # TODO maybe just default not die

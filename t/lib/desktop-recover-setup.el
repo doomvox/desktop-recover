@@ -67,4 +67,5 @@
 ;; (load-library "desktop-recover")
 (require 'desktop-recover)
 
-(desktop-recover-interactive) ;;note: to debug comment out and run manually
+;;; DEBUG
+;;; (desktop-recover-interactive) ;;note: to debug comment out and run manually

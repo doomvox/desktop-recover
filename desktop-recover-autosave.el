@@ -50,11 +50,9 @@
   "Location dangling buffers (without associated files) are saved.")
 ;; TODO set risky?
 
-
-;; TODO
-;; (desktop-save-mode 1) ;; Turn on desktop.el (I used to do this in desktop-setup... why? )
-;; Actually... why do I do it at all?
-
+(defvar desktop-recover-autosave-clean-exit-flag "desktop_recover_clean_exit.flag"
+  "The existance of a file of this name signals that we did a clean exit."
+  )
 
 (defun desktop-recover-autosave-save ()
   "Wrapper routine to be attached to a hook to save buffers when idle."
@@ -66,9 +64,10 @@
             (desktop-recover-autosave-save)))
 
 ;; TODO
-;;   Deal with shell-misc case.  Maybe, skip major mode if it's shell?  Or just ignore it?
-;;   Ideally: provide some way of customizing default behavior... ((Oh: there's a list
-;;   of file names to skip in desktop.el, isn't there?))
+;; Deal with shell-misc case.  Maybe, skip major mode if it's shell?
+;; (There is a list of file names to skip in desktop.el, isn't there?)
+;; Ideally: provide a list of major-modes that will be skipped, so file/buffer names
+;; don't matter so much.
 (defun desktop-recover-autosave-save-with-danglers ()
   "Desktop autosave routine that preserves buffers that have no associated files.
 Works by saving them to a standard tmp directory, then using desktop.el to save
@@ -97,6 +96,7 @@ associated with files in the special tmp location)."
     (switch-to-buffer preserve-buffer)
     (deactivate-mark)
     (desktop-save-in-desktop-dir)
+    (desktop-recover-autosave-clear-clean-save-flag)
   ))
 
 
@@ -249,6 +249,59 @@ Inserts names into the current buffer, at point, one on each line."
   "Experimental:  Playing with desktop-read."
   (interactive)
   (desktop-read "$tmp_dir")
-)
+  )
 
+;; TODO request a hook to do this.  Doesn't seem to exist.
+;; TODO
+;; Of the various ways of doing this, let's try just touching a file here,
+;; which the autosave code will delete. (would the reverse be better?)
+;; TODO better than touch: use emacs to save a buffer that has an
+;; identifying message in it.
+(defun desktop-recover-autosave-save-buffers-kill-terminal ()
+  "Wrapper around save-buffers-kill-terminal to flag clean exits.
+Or rather if flags the fact that we tried to exit cleanly, since
+there's no way to check if all saves were completed before emacs
+dies."
+  (let* (( clean-exit-flag-file
+           (concat
+            (desktop-recover-autosave-fixdir
+             desktop-recover-autosave-tmp-dir)
+            desktop-recover-autosave-clean-exit-flag))
+         ;; set these to override defaults
+         (output-buffer nil)
+         (error-buffer  nil)
+         (cmd (format "touch %s" clean-exit-flag-file))
+         )
+    (desktop-recover-autosave-save-with-danglers) ;; TODO double-check. right save?
+    ;; we do this *after* the above, because that also clears the flag
+    (shell-command cmd output-buffer error-buffer)
+    (save-buffers-kill-terminal)
+    ))
 
+(defun desktop-recover-autosave-clear-clean-save-flag ()
+  "Remove the clean save flag (until the next clean save really happens)."
+  (let* (( clean-exit-flag-file
+           (concat
+            (desktop-recover-autosave-fixdir
+             desktop-recover-autosave-tmp-dir)
+            desktop-recover-autosave-clean-exit-flag))
+         )
+    (delete-file clean-exit-flag-file)
+    ))
+
+(defun desktop-recover-autosave-fixdir (dir &optional root)
+  "Fixes the DIR.
+Conditions directory paths for portability and robustness.
+Some examples:
+ '~/tmp'             => '/home/doom/tmp/'
+ '~/tmp/../bin/test' => '/home/bin/test/'
+Note: converts relative paths to absolute, using the current
+default-directory setting, unless specified otherwise with the
+ROOT option.  Note side-effect: converts the empty string into
+the default-directory or the ROOT setting."
+  (let ((return
+         (substitute-in-file-name
+          (convert-standard-filename
+           (file-name-as-directory
+            (expand-file-name dir root))))))
+    return))

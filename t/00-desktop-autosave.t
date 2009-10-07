@@ -17,7 +17,7 @@ use File::Copy     qw( copy move );
 use Fatal          qw( open close mkpath copy move );
 use Emacs::Run;
 
-# Note: change the alternative to 0 before shipping
+# Note: change the default to 0 before shipping
 my $DEBUG   = $ENV{ TEST_EMACS_DEBUG }   || 0;
 # Note: with $VERBOSE emacs stderr messages included in output (may break tests)
 my $VERBOSE = $ENV{ TEST_EMACS_VERBOSE } || 0;
@@ -241,14 +241,14 @@ unlink( ".emacs.desktop.lock" );
   my $label = "$test_name, using $emacs";
   $label .= " with $dot_emacs" if $dot_emacs;
 
-  ok( is_sub_set_of( \@expected, \@result), $label)
-    or print STDERR "Result: "   . Dumper(\@result)   . "\n" .
-                    "Expected: " . Dumper(\@expected) . "\n" ;
+  ok( is_sub_set_of( \@expected, \@result ), $label )
+    or print STDERR "Result: "   . Dumper( \@result )   . "\n" .
+                    "Expected: " . Dumper( \@expected ) . "\n" ;
 
 }
 
 {
-  my $test_name = "Testing desktop-read using new E::R feature that skips -batch";
+  my $test_name = "Testing desktop-read via Emacs::Run eval_elisp_full_emacs";
   chdir( $tmp_dir );
 
   # get a known desktop file from archive location
@@ -287,8 +287,9 @@ unlink( ".emacs.desktop.lock" );
   push @emacs_libs, $desktop_recover_autosave;
 
   my $er = Emacs::Run->new({
-                    emacs_libs => \@emacs_libs,
-                 });
+                            load_no_inits => 1,
+                            emacs_libs    => \@emacs_libs,
+                           });
 
   my $result =
     $er->eval_elisp_full_emacs( {
@@ -303,7 +304,7 @@ unlink( ".emacs.desktop.lock" );
   my $label = "$test_name, using $emacs";
   $label .= " with $dot_emacs" if $dot_emacs;
 
-  ok( is_sub_set_of( \@expected, $result, $label) )
+  ok( is_sub_set_of( \@expected, $result ), $label )
     or print STDERR "Result: "   . Dumper( $result )    . "\n" .
                     "Expected: " . Dumper( \@expected ) . "\n" ;
 }

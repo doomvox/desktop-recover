@@ -280,43 +280,43 @@ Using it may cause conflicts.  Use it anyway? " owner)))))
 
 ;; TODO not yet in use.  (make sure you understand it, eh?)
 (defun desktop-read-tail (&optional dirname)
-  "Contains the folderol from desktop-read, following the point
-at which it loads the desktop file."
+  "The code that the desktop-read function executes after loading the desktop file.
+This folderol was cut and paste from there on the theory that whatever it is
+that this is doing it may be a good idea for me to do also."
   (interactive)
+  ;;; TODO add anything else here?
+  ;;;
+  ;; Remember when desktop buffer was modified.
+  (setq desktop-file-modtime (nth 5 (file-attributes (desktop-full-file-name))))
+  ;; If it wasn't already, mark it as in-use, to bother other
+  ;; desktop instances.
+  (unless owner
+    (condition-case nil
+        (desktop-claim-lock)
+      (file-error (message "Couldn't record use of desktop file")
+                  (sit-for 1))))
 
-;;; [...] TODO add anything else?
-
-	    ;; Remember when desktop buffer was modified.
-  	    (setq desktop-file-modtime (nth 5 (file-attributes (desktop-full-file-name))))
-	    ;; If it wasn't already, mark it as in-use, to bother other
-	    ;; desktop instances.
-	    (unless owner
-	      (condition-case nil
-		  (desktop-claim-lock)
-		(file-error (message "Couldn't record use of desktop file")
-			    (sit-for 1))))
-
-	    ;; `desktop-create-buffer' puts buffers at end of the buffer list.
-	    ;; We want buffers existing prior to evaluating the desktop (and
-	    ;; not reused) to be placed at the end of the buffer list, so we
-	    ;; move them here.
-	    (mapc 'bury-buffer
-		  (nreverse (cdr (memq desktop-first-buffer (nreverse (buffer-list))))))
-	    (switch-to-buffer (car (buffer-list)))
-	    (run-hooks 'desktop-delay-hook)
-	    (setq desktop-delay-hook nil)
-	    (run-hooks 'desktop-after-read-hook)
-	    (message "Desktop: %d buffer%s restored%s%s."
-		     desktop-buffer-ok-count
-		     (if (= 1 desktop-buffer-ok-count) "" "s")
-		     (if (< 0 desktop-buffer-fail-count)
-			 (format ", %d failed to restore" desktop-buffer-fail-count)
-		       "")
-		     (if desktop-buffer-args-list
-			 (format ", %d to restore lazily"
-				 (length desktop-buffer-args-list))
-		       ""))
-            )
+  ;; `desktop-create-buffer' puts buffers at end of the buffer list.
+  ;; We want buffers existing prior to evaluating the desktop (and
+  ;; not reused) to be placed at the end of the buffer list, so we
+  ;; move them here.
+  (mapc 'bury-buffer
+        (nreverse (cdr (memq desktop-first-buffer (nreverse (buffer-list))))))
+  (switch-to-buffer (car (buffer-list)))
+  (run-hooks 'desktop-delay-hook)
+  (setq desktop-delay-hook nil)
+  (run-hooks 'desktop-after-read-hook)
+  (message "Desktop: %d buffer%s restored%s%s."
+           desktop-buffer-ok-count
+           (if (= 1 desktop-buffer-ok-count) "" "s")
+           (if (< 0 desktop-buffer-fail-count)
+               (format ", %d failed to restore" desktop-buffer-fail-count)
+             "")
+           (if desktop-buffer-args-list
+               (format ", %d to restore lazily"
+                       (length desktop-buffer-args-list))
+             ""))
+  )
 
 ;;; The following code handles the display of  marker, name, path, mode,
 ;;; where the is set ("*") if buffer is to be loaded,
@@ -343,6 +343,11 @@ at which it loads the desktop file."
 (define-key desktop-recover-mode-map "p"    'previous-line)
 (define-key desktop-recover-mode-map "*"    'desktop-recover-mark-move-down)
 
+;; TODO SOON need a more complicated routine that doesn't just run the dcb
+;; but also gets the path, checks for a newer autosave
+;;   (if (desktop-recover-newer-auto-save path)
+;;       (recover-this-file))
+;; Q: is there any reason not to *always* do this recover step?
 (defun desktop-recover-do-it ()
   "Accept the current settings of the restore menu buffer.
 Runs the appropriate \"descktop-create-buffer\" calls stored
@@ -402,7 +407,6 @@ in the desktop-list data structure."
     (setq buffer-read-only 't)
   ))
 
-
 (defun desktop-recover-mark-move-down ()
   "Set marker on the current line, move down one."
   (interactive)
@@ -415,12 +419,16 @@ in the desktop-list data structure."
   (desktop-recover-unmark)
   (forward-line 1))
 
-;; This is intended to be run at emacs init time (run from desktop-recover-interactive)
-;; so there's no need for a keybinding
+;; TODO
+;; Do I need to add commands to allow the user to manually
+;; reject an auto-save file?
+
+;; This is intended to be run at emacs init time (run from
+;; desktop-recover-interactive) so there's no need for a keybinding
 (defun desktop-recover-show-menu (desktop-list)
   "Displays info about buffers that are candidates to be restored.
-These are buffers that existed when last 'desktop-recover' was
-done."
+These are buffers that existed when the last 'desktop-recover' was
+done." ;; TODO wrong word? Is it "recover" or "save"?
 ;; TODO currently uses one, fixed defvar value: desktop-recover-buffer-name
 ;; Any reason to allow concurrent usage? (need multiple unique buffer names then)
   (interactive)
@@ -436,7 +444,6 @@ done."
     (delete-region (mark) (point))
     (insert menu-contents)
     (desktop-recover-mode)
-
     (setq buffer-read-only 't)
   ))
 
@@ -445,6 +452,7 @@ done."
   (let (
          (name) (path) (mode) (dcb-code)
          (marker "*")
+         (hash-mark "#")
          (line "")
          (menu-contents "")
          (line-fmt "%3s%-35s%-42s")
@@ -472,36 +480,66 @@ done."
                    ))
            (put-text-property 0 1 'dcb dcb-code line)
 
+           ;; TODO make this part of the above line-fmt?
+           (if (desktop-recover-newer-auto-save path)
+               (set1 line (concat line " " hash-mark)))
+
            (setq menu-contents
                  (concat menu-contents line "\n"))
            )
          menu-contents))
 
+(defun desktop-recover-clean-exit-p ()
+  "Does it look like emacs exited cleanly?"
+  (let* (
+         (tmp-dir (desktop-recover-autosave-fixdir
+                   desktop-recover-autosave-tmp-dir))
+         (clean-exit-flag-file
+          (concat tmp-dir desktop-recover-autosave-clean-exit-flag))
+         (retval (file-exists-p clean-exit-flag-file))
+         )
+    retval))
 
 (defun desktop-recover-by-default-p (record)
   "Examine RECORD to determine if this buffer should be reloaded by default.
-  ;;; TODO implement spec:
-   ;;   What I now envision is a [desktop-recover-interactive] function that
-   ;;     a. shows all buffers that were saved
-   ;;     b. shows which buffers have newer auto-save files
-   ;;     c. will include temp buffers iff emacs did not exit cleanly
-   ;;     d. lets user pick which files/buffers to restore (checkboxes?)
-   ;;     e. defaults to- regular files checked, temp buffers not checked,
-   ;;        anything checked with newer auto-save gets recovered."
-
-  (let* ( (tmp-dir desktop-autosave-tmp-dir)
-          )
-
+A file should not be re-loaded if was an automatically saved temporary
+buffer and emacs exited cleanly.  RECORD should be a list of
+name, path, mode and dcb-code."
+  (let* (
+         (name) (path) (mode) (dcb-code)
+         (clean-exit-p (desktop-recover-clean-exit-p))
+         (tmp-dir (desktop-recover-autosave-fixdir desktop-recover-autosave-tmp-dir))
+         (recover-p t) ;; return value
+         )
     ;; unpack the record
     (setq name     (nth 0 record))
     (setq path     (nth 1 record))
     (setq mode     (nth 2 record))
     (setq dcb-code (nth 3 record))
 
-    (message "the temp directory: %s" tmp-dir); DEBUG
+    (message "the temp directory: %s" tmp-dir) ;; DEBUG
 
-  ;; Stub: for now, always t
-  t))
+    (cond ((and
+            (string=
+             (desktop-recover-autosave-fixdir path)
+             (tmp-dir))
+            (clean-exit-p))
+           (setq recover-p nil))
+          )
+    recover-p))
+
+
+(defun desktop-recover-newer-auto-save (path)
+  "Given PATH (full path and file name) check for newer auto-save file."
+  (let* (
+      ;; (name (file-name-nondirectory path)) ;; could just pass that in too
+      ;; (a-s-name (format "#%s#" name))
+         (a-s-path (make-auto-save-file-name path))
+         )
+    ;; if a-s-path does not exist, this is nil
+    (file-newer-than-file-p a-s-path path)
+    ))
+
 
 
 ;;; desktop-recover.el ends here
