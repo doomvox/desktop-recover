@@ -36,27 +36,43 @@
   (require 'cl))
 
 ;; TODO trying load-library rather than require.  Any improvement? (No)
-;; (require 'desktop)
-(load-library "desktop")
+;; (load-library "desktop")
+(require 'desktop)
 
-;; Turning desktop.el off (we'll use it indirectly)
-(desktop-save-mode -1)
-
-; Do you hate pop-up dialog boxes as much as I do?
-(setq use-dialog-box nil)
-
+;; TODO Revise these stale remarks:
 ;; TODO I personally am setting this variable in my emacs_launcher.pl script.
 ;;      where would normal human beings want to set it?
 ;;  Perhaps: write a function that sets it based on certain other things
 ;;           (is there another emacs running already?
 ;;            what is the current "project"?)
+;; Perhaps a bigger problem: there's a danger that desktop will munge this setting.
+;; Perhaps: repeatedly set it from some other source that it can't munge?
 
 ;; (setq desktop-dirname "/home/doom/End/Cave/DesktopAutosave/lib/emacs/t/tmp/")
 ;; (setq desktop-dirname "/home/doom/")
-(load-library "desktop-recover-autosave")
-(load-library "desktop-recover")
+
+
+;; introducing a new var setting, which wherever possible, we will use
+;; instead of desktop.el's confusing search process.
+(setq desktop-recover-location "")
+
+(require 'desktop-recover-autosave)
+(require 'desktop-recover)
+
+;; TODO -- trying moving these settings down to *after* the point at which all
+;; the libraries have been loaded.  Does *this* help?
+
+;; Turning desktop.el off (we'll use it indirectly)
+(desktop-save-mode -1)
+; Do you hate pop-up dialog boxes as much as I do?  TODO put this in luddite mode?
+(setq use-dialog-box nil)
+
+(setq desktop-load-locked-desktop t)
 
 (desktop-recover-interactive)
+
+;; TODO think carefully about whether you want to do this... mysterious lock-up problems.
+(desktop-recover-do-saves-automatically)
 
 ;; So that we can tell if exit was clean.
 (define-key ctl-x-map "\C-c" 'desktop-recover-autosave-save-buffers-kill-terminal)
