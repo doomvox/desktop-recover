@@ -43,6 +43,14 @@
 ;;;;##########################################################################
 ;;;;  User Options, Variables
 ;;;;##########################################################################
+(defcustom desktop-recover-location "$HOME/.emacs.d"
+  "The default location from which we save and restore desktop files.
+Note: desktop.el has a desktop-dirname location, but that can not be
+used reliably as a user setting, because the code changes it under some
+circumstances.")
+(put 'desktop-recover-location 'risky-local-variable t)
+(setq desktop-recover-location
+      (desktop-recover-autosave-fixdir desktop-recover-location))
 
 ;; TODO defcustom?
 (defvar desktop-recover-buffer-name "*Desktop Buffer Restore Menu*"
@@ -61,7 +69,6 @@ name of the associated emacs mode (e.g. \"text-mode\"), and the
 \"desktop-create-buffer call\" is the code (in string form) that
 will need to be run to restore the buffer.")
 
-
 ;; ======================
 ;; read .emacs-desktop  files
 
@@ -69,10 +76,22 @@ will need to be run to restore the buffer.")
 ;; I want to deal with each file conditionally, so I need to parse it
 ;; myself
 
+
+;; TODO need to set these in here? avoiding save during eval might be
+;; good... but I think I can do that by not enabling saves until we've
+;; reloaded...
+    ;; Avoid desktop saving during evaluation of desktop buffer.
+;;    (let ((desktop-save nil)
+;;           (desktop-first-buffer nil)
+
+;;           (owner (desktop-owner))
+
+
+;; TODO maybe, dirname should not be optional?
 (defun desktop-recover-interactive (&optional dirname)
   "Read the .emacs-desktop file, bring up menu to approve buffer restoration."
-  (interactive)
-  (let* ( (file (desktop-read-initialization))
+  (interactive) ;; maybe: interactive D?
+  (let* ( (file (desktop-read-initialization dirname))
           ;; an .emacs-desktop file is in sections labeled like so:
           (global-section-marker ";; Global section")
           (buffer-section-marker ";; Buffer section")
@@ -118,7 +137,7 @@ will need to be run to restore the buffer.")
     ;; designed for interactive selection.
     (desktop-recover-show-menu desktop-list)
 
-    ;; TODO need to do this here, right?
+    ;; TODO do I need to do this here? (I doubt it).
     ;;    (desktop-read-tail)
     ))
 
@@ -223,11 +242,33 @@ Which may look something like:
          )
     first-item))
 
+;; TODO rename to: desktop-full-name-and-path or something?
+;; But Why not just use desktop-full-file-name directly?
+;; TODO Q: should this check for file existance? A: no.
 (defun desktop-read-initialization (&optional dirname)
+  "Returns the full name and path of the desktop file.
+Uses the standard name \"\", located either in the given
+DIRNAME or in the default `desktop-recover-location'. "
+    (setq desktop-dirname
+          (file-name-as-directory
+           (expand-file-name
+            (or
+             ;; If DIRNAME is specified, use it.
+             (and (< 0 (length dirname)) dirname)
+             ;; Otherwise fall back on the default
+             desktop-recover-location))))
+    ;; now get the full file name.
+    (desktop-full-file-name dirname)
+    )
+
+(defun desktop-read-initialization-old (&optional dirname)
   "Does precisely the same folderol as the desktop-read function,
 up to the point where it loads the desktop file: instead it returns the
 full name of the desktop file located in DIRNAME."
-    (unless noninteractive
+;; TODO Consider the possibility that "desktop.el" is completely out-to-lunch
+;; half of the time, and that slavishly imitating it is bad news, as this
+;; routine clearly is.
+  (unless noninteractive ;; whole function is a no-op if used interactively...
     (setq desktop-dirname
           (file-name-as-directory
            (expand-file-name
@@ -272,13 +313,17 @@ Using it may cause conflicts.  Use it anyway? " owner)))))
 
 	    ))
       ;; No desktop file found.
-      (desktop-clear)
+      (desktop-clear) ;; -- TODO so why are we fucking clearing the desktop?
       (let ((default-directory desktop-dirname))
         (run-hooks 'desktop-no-desktop-file-hook))
       (message "No desktop file.")
       nil)))
 
 ;; TODO not yet in use.  (make sure you understand it, eh?)
+;; I don't see any need for these features at all, actually...
+;; the buffer order juggling is mildly inane (and useless for my purpose)
+;; and the detailed report of success or failure is pretty useless...
+;; if the file you wanted didn't get opened, you'll just go open it.
 (defun desktop-read-tail (&optional dirname)
   "The code that the desktop-read function executes after loading the desktop file.
 This folderol was cut and paste from there on the theory that whatever it is
@@ -435,7 +480,6 @@ done." ;; TODO wrong word? Is it "recover" or "save"?
   (let* (
           (menu-contents)
          )
-
     (setq menu-contents (desktop-recover-build-menu-contents desktop-list))
 
     (switch-to-buffer desktop-recover-buffer-name)
@@ -522,7 +566,7 @@ name, path, mode and dcb-code."
     (cond ((and
             (string=
              (desktop-recover-autosave-fixdir path)
-             (tmp-dir))
+             tmp-dir)
             (clean-exit-p))
            (setq recover-p nil))
           )
