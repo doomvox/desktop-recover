@@ -36,32 +36,47 @@
 ;;   (load-library "desktop-recover-autosave")
 ;;   (require 'desktop-recover-autosave)
 
-;;; Code:
-
 (provide 'desktop-recover-autosave)
 (eval-when-compile
   (require 'cl))
 
 (require 'desktop)
 
+;;======
+;; poor man's pod/lazy man's info:
+;;   dummy variables with documentation attached
+
+(defvar desktop-recover-autosave-dangling-buffers-doc ""
+  "We use \"dangling buffers\" to mean buffers without associated files.
+Typically we will exclude the special display buffers (which
+usually begin with an asterix), dired buffers, and so on.  We're
+concerned here with buffers used for temporary notes that might've
+been prematurely lost by an emacs crash \(due to a broken connect\).
+
+Along with the automated desktop save feature, we will make save
+these dangling buffers to temporary files, making them a little
+less ephemeral, though not as permanent as ordinary files.
+A clean exit from emacs should erase them.")
+
+;;;;##########################################################################
+;;;;  User Options, Variables
+;;;;##########################################################################
+
 (defcustom desktop-recover-autosave-tmp-dir
   (substitute-in-file-name
    "$HOME/.emacs.d/desktop-recover-autosave-tmp")
-  "Location dangling buffers (without associated files) are saved.")
-;; TODO set risky?
+  "Location where dangling buffers that have no associated files are saved.")
 
 (defvar desktop-recover-autosave-clean-exit-flag "desktop_recover_clean_exit.flag"
-  "The existance of a file of this name signals that we did a clean exit."
-  )
+  "The existance of a file of this name signals that we did a clean exit.")
 
-(defun desktop-recover-autosave-save ()
-  "Wrapper routine to be attached to a hook to save buffers when idle."
-;;  (desktop-save-in-desktop-dir))
-  (desktop-recover-autosave-save-with-danglers))
+;; TODO Add a way to turn this off?  Any safety features to add?
+(defun desktop-recover-do-saves-automatically ()
+  "Makes the desktop saved automatically using the auto-save-hook."
+  (add-hook 'auto-save-hook
+            (lambda ()
+              (desktop-recover-autosave-save-with-danglers))))
 
-(add-hook 'auto-save-hook
-          (lambda ()
-            (desktop-recover-autosave-save)))
 
 ;; TODO
 ;; Deal with shell-misc case.  Maybe, skip major mode if it's shell?
@@ -72,8 +87,9 @@
   "Desktop autosave routine that preserves buffers that have no associated files.
 Works by saving them to a standard tmp directory, then using desktop.el to save
 them along with the other open files.  After re-starting emacs, you should then
-have buffers correpsonding to the old dangling buffers (though now they'll be
-associated with files in the special tmp location)."
+have buffers corresponding to the old dangling buffers (though now they'll be
+associated with files in the special tmp location).
+See: `desktop-recover-autosave-dangling-buffers-doc'"
   (interactive)
   (let* ( (DEBUG nil)
           (preserve-buffer (current-buffer))
@@ -95,10 +111,10 @@ associated with files in the special tmp location)."
               ))
     (switch-to-buffer preserve-buffer)
     (deactivate-mark)
-    (desktop-save-in-desktop-dir)
+    ;; (desktop-save-in-desktop-dir)
+    (desktop-recover-autosave-force-save-in-desktop-dir)
     (desktop-recover-autosave-clear-clean-save-flag)
   ))
-
 
 (defun desktop-recover-autosave-display-dangling-buffers ()
   "List buffers without files or directories, skipping internal and display (*) buffers.
@@ -111,8 +127,7 @@ Returns a list of buffer objects."
     ))
 
 
-; TODO any point in refactoring this to use
-;   desktop-recover-autosave-list-ordinary-buffers
+; TODO should this be refactored to use desktop-recover-autosave-list-ordinary-buffers ?
 (defun desktop-recover-autosave-list-dangling-buffers ()
   "List buffers without files or directories, skipping internal and display (*) buffers.
 Returns a list of buffer objects."
@@ -305,3 +320,21 @@ the default-directory or the ROOT setting."
            (file-name-as-directory
             (expand-file-name dir root))))))
     return))
+
+(defun desktop-recover-autosave-force-save (dirname &optional release)
+   "Force save of desktop by wiping out any existing file first.
+This ensures you will not have any question about modtimes
+getting in the way."
+   (message "desktop-force-save called")
+   (setq desktop-dirname (file-name-as-directory (expand-file-name dirname)))
+   (desktop-remove)
+   (desktop-save dirname release)
+   )
+
+(defun desktop-recover-autosave-force-save-in-desktop-dir ()
+  "Save the desktop in directory `desktop-dirname'."
+  (interactive)
+  (if desktop-dirname
+      (desktop-recover-autosave-force-save desktop-dirname)
+    (call-interactively 'desktop-save))
+  (message "Desktop saved in %s" (abbreviate-file-name desktop-dirname)))
