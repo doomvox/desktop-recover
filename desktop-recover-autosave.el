@@ -79,10 +79,14 @@ A clean exit from emacs should erase them.")
 
 
 ;; TODO
-;; Deal with shell-misc case.  Maybe, skip major mode if it's shell?
-;; (There is a list of file names to skip in desktop.el, isn't there?)
-;; Ideally: provide a list of major-modes that will be skipped, so file/buffer names
-;; don't matter so much.
+;; Need a way to skip things like my ubiquitous "shell-misc" buffers.
+;; desktop.el has a skip list, right?
+;; Simplest thing for me to do: rename it "*shell-misc*"... but that
+;; breaks my old keystroke macros.
+;;
+;; Would it make sense to be able to skip all shell buffers?
+;; Ideally: provide a list of major-modes that will be skipped,
+;; so file/buffer names don't matter so much.
 (defun desktop-recover-autosave-save-with-danglers ()
   "Desktop autosave routine that preserves buffers that have no associated files.
 Works by saving them to a standard tmp directory, then using desktop.el to save
@@ -126,23 +130,22 @@ Returns a list of buffer objects."
       (desktop-recover-autosave-display-list-other-window buffname-list "*mah buffers*")
     ))
 
-
 ; TODO should this be refactored to use desktop-recover-autosave-list-ordinary-buffers ?
 (defun desktop-recover-autosave-list-dangling-buffers ()
   "List buffers without files or directories, skipping internal and display (*) buffers.
 Returns a list of buffer objects."
   (interactive)
-  (let* ( (DEBUG nil)
-          (preserve-buffer (current-buffer))
-          (output-list)
-        )
+  (let* ((DEBUG nil)
+         (preserve-buffer (current-buffer))
+         (output-list)
+         )
     (and DEBUG (message "running desktop-recover-autosave-list-dangling-buffers"))
     (save-excursion
       (dolist (buffy (buffer-list))
         (set-buffer buffy) ; switch to buffer so we can check 'major-mode'
-        (let* ( (  file-nameo (buffer-file-name buffy) )
-                (  buffy-name (buffer-name  buffy) )
-                )
+        (let* ((file-nameo (buffer-file-name buffy) )
+               (buffy-name (buffer-name  buffy) )
+               )
           (cond (
                  (and
                   ;; looking for buffers without file names
@@ -215,8 +218,8 @@ Returns a list of buffer names.  Note that 'ordinary' buffers include
 ;; TODO -- only works with a list of strings.
 ;;         is there pp code that would work with, say, a list of objects like buffers?
 (defun desktop-recover-autosave-display-list-other-window (list buffer-name)
-  "Given a list of strings and a buffer name, displays the list in the buffer in a second window.
-Closes all other windows except for the current window and the newly created buffer list."
+  "Dipplays LIST of strings in BUFFER-NAME in a second window.
+Closes all other windows except for the current window and the newly created one."
   (delete-other-windows)
   (split-window-vertically)
   (other-window 1)
@@ -225,17 +228,6 @@ Closes all other windows except for the current window and the newly created buf
   (delete-region (mark) (point))
   (insert (mapconcat 'identity list "\n"))   ;;; TODO how to insert a list?
   (deactivate-mark))
-
-
-;; DEBUG only
-(defun doom-message-major-mode ()
-  "Echoes the current major-mode setting to the message area."
-  (interactive)
-  (message "major-mode:%s" major-mode))
-
-
-;; buffer-file-name returns nil if it's a dired buffer ?
-
 
 (defun desktop-recover-autosave-print-ordinary-buffer-names ()
   "Print ordinary buffer names (non-directory, non-asterix, non-internal)."
@@ -258,25 +250,19 @@ Inserts names into the current buffer, at point, one on each line."
             (insert "\n")
     )))
 
-
-;; TODO delete, I think
-(defun desktop-recover-autosave-desktop-read-exp ()
-  "Experimental:  Playing with desktop-read."
-  (interactive)
-  (desktop-read "$tmp_dir")
-  )
-
 ;; TODO request a hook to do this.  Doesn't seem to exist.
 ;; TODO
 ;; Of the various ways of doing this, let's try just touching a file here,
 ;; which the autosave code will delete. (would the reverse be better?)
 ;; TODO better than touch: use emacs to save a buffer that has an
-;; identifying message in it.
+;; identifying message in it (current pid?) (Oh: list of stuff to
+;; be saved... then you could check timestamps later to see if they
+;; all were saved...)
 (defun desktop-recover-autosave-save-buffers-kill-terminal ()
   "Wrapper around save-buffers-kill-terminal to flag clean exits.
-Or rather if flags the fact that we tried to exit cleanly, since
-there's no way to check if all saves were completed before emacs
-dies."
+Actually, it flags the fact that we *tried* to exit cleanly, since
+there's easy no way to check if all saves were completed before
+emacs died."
   (let* (( clean-exit-flag-file
            (concat
             (desktop-recover-autosave-fixdir
