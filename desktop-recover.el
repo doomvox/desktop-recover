@@ -181,6 +181,26 @@ desktop-create-buffer call.  See \\[desktop-recover-desktop-list-doc]."
       )
     desktop-list))
 
+(defun desktop-recover-file-path (&optional dirname)
+  "Returns the full name and path of the desktop file.
+Uses the standard name \".emacs.desktop\" (determined from
+`desktop-base-file-name'), located either in the given DIRNAME or
+in the default `desktop-recover-location'.  It does not check for
+the existance of the file."
+    (setq desktop-dirname
+          (file-name-as-directory
+           (expand-file-name
+            (or
+             ;; If DIRNAME is specified, use it.
+             (and (< 0 (length dirname)) dirname)
+             ;; Otherwise fall back on the default
+             desktop-recover-location))))
+    ;; now get the full file name.
+    (concat
+     (desktop-recover-autosave-fixdir desktop-dirname)
+     desktop-base-file-name)
+    )
+
 (defun desktop-recover-clean-string (string)
   "Strip leading/trailing whitespace, and also, leading single-quotes."
   (let ((strip-lead-space-pattern "^[ \t]*\\([^ \t]*.*\\)")
@@ -214,25 +234,6 @@ conversion from string to list first."
          )
     first-item))
 
-(defun desktop-recover-file-path (&optional dirname)
-  "Returns the full name and path of the desktop file.
-Uses the standard name \".emacs.desktop\" (determined from
-`desktop-base-file-name'), located either in the given DIRNAME or
-in the default `desktop-recover-location'.  It does not check for
-the existance of the file."
-    (setq desktop-dirname
-          (file-name-as-directory
-           (expand-file-name
-            (or
-             ;; If DIRNAME is specified, use it.
-             (and (< 0 (length dirname)) dirname)
-             ;; Otherwise fall back on the default
-             desktop-recover-location))))
-    ;; now get the full file name.
-    (concat
-     (desktop-recover-autosave-fixdir desktop-dirname)
-     desktop-base-file-name)
-    )
 
 ;;========
 ;; interactive buffer selection for recovery
