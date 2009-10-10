@@ -58,7 +58,7 @@ name of the associated emacs mode (e.g. \"text-mode\"), and the
 \"desktop-create-buffer call\" is the code (in string form) that
 will need to be run to restore the buffer.")
 
-(defvar desktop-recover-autosave-dangling-buffers-doc ""
+(defvar desktop-recover-dangling-buffers-doc ""
   "We use \"dangling buffers\" to mean buffers without associated files.
 Typically we will exclude the special display buffers (which
 usually begin with an asterix), dired buffers, and so on.  We're
@@ -74,9 +74,9 @@ A clean exit from emacs should erase them.")
 ;;;;  User Options, Variables
 ;;;;##########################################################################
 
-(defcustom desktop-recover-autosave-tmp-dir
+(defcustom desktop-recover-tmp-dir
   (substitute-in-file-name
-   "$HOME/.emacs.d/desktop-recover-autosave-tmp")
+   "$HOME/.emacs.d/desktop-recover-tmp")
   "Location where dangling buffers that have no associated files are saved.")
 
 (defcustom desktop-recover-location "$HOME/.emacs.d"
@@ -86,9 +86,9 @@ used reliably as a user setting, because the code changes it under some
 circumstances.")
 (put 'desktop-recover-location 'risky-local-variable t)
 (setq desktop-recover-location
-      (desktop-recover-autosave-fixdir desktop-recover-location))
+      (desktop-recover-fixdir desktop-recover-location))
 
-(defvar desktop-recover-autosave-clean-exit-flag "desktop_recover_clean_exit.flag"
+(defvar desktop-recover-clean-exit-flag "desktop_recover_clean_exit.flag"
   "The existance of a file of this name signals that we did a clean exit.")
 
 ;; TODO defcustom?
@@ -103,7 +103,7 @@ circumstances.")
   "Makes the desktop saved automatically using the auto-save-hook."
   (add-hook 'auto-save-hook
             (lambda ()
-              (desktop-recover-autosave-save-with-danglers))))
+              (desktop-recover-save-with-danglers))))
 
 
 ;; TODO
@@ -115,18 +115,18 @@ circumstances.")
 ;; Would it make sense to be able to skip all shell buffers?
 ;; Ideally: provide a list of major-modes that will be skipped,
 ;; so file/buffer names don't matter so much.
-(defun desktop-recover-autosave-save-with-danglers ()
+(defun desktop-recover-save-with-danglers ()
   "Desktop autosave routine that preserves buffers that have no associated files.
 Works by saving them to a standard tmp directory, then using desktop.el to save
 them along with the other open files.  After re-starting emacs, you should then
 have buffers corresponding to the old dangling buffers (though now they'll be
 associated with files in the special tmp location).
-See: `desktop-recover-autosave-dangling-buffers-doc'"
+See: `desktop-recover-dangling-buffers-doc'"
   (interactive)
   (let* ( (DEBUG nil)
           (preserve-buffer (current-buffer))
-          (temp-loc desktop-recover-autosave-tmp-dir)
-          (dangling-buffers (desktop-recover-autosave-list-dangling-buffers))
+          (temp-loc desktop-recover-tmp-dir)
+          (dangling-buffers (desktop-recover-list-dangling-buffers))
           )
     (unless (file-exists-p temp-loc)
       (make-directory temp-loc t))
@@ -144,22 +144,22 @@ See: `desktop-recover-autosave-dangling-buffers-doc'"
     (switch-to-buffer preserve-buffer)
     (deactivate-mark)
     ;; (desktop-save-in-desktop-dir)
-    (desktop-recover-autosave-force-save-in-desktop-dir)
-    (desktop-recover-autosave-clear-clean-save-flag)
+    (desktop-recover-force-save-in-desktop-dir)
+    (desktop-recover-clear-clean-save-flag)
   ))
 
-(defun desktop-recover-autosave-display-dangling-buffers ()
+(defun desktop-recover-display-dangling-buffers ()
   "List buffers without files or directories, skipping internal and display (*) buffers.
 Returns a list of buffer objects."
   (interactive)
-  (let* ( (dangling-buffers (desktop-recover-autosave-list-dangling-buffers))
+  (let* ( (dangling-buffers (desktop-recover-list-dangling-buffers))
           (buffname-list  (mapcar 'buffer-name dangling-buffers) )
                  )
-      (desktop-recover-autosave-display-list-other-window buffname-list "*mah buffers*")
+      (desktop-recover-display-list-other-window buffname-list "*mah buffers*")
     ))
 
-; TODO should this be refactored to use desktop-recover-autosave-list-ordinary-buffers ?
-(defun desktop-recover-autosave-list-dangling-buffers ()
+; TODO should this be refactored to use desktop-recover-list-ordinary-buffers ?
+(defun desktop-recover-list-dangling-buffers ()
   "List buffers without files or directories, skipping internal and display (*) buffers.
 Returns a list of buffer objects."
   (interactive)
@@ -167,7 +167,7 @@ Returns a list of buffer objects."
          (preserve-buffer (current-buffer))
          (output-list)
          )
-    (and DEBUG (message "running desktop-recover-autosave-list-dangling-buffers"))
+    (and DEBUG (message "running desktop-recover-list-dangling-buffers"))
     (save-excursion
       (dolist (buffy (buffer-list))
         (set-buffer buffy) ; switch to buffer so we can check 'major-mode'
@@ -191,10 +191,10 @@ Returns a list of buffer objects."
                 )))
       (switch-to-buffer preserve-buffer)
       (deactivate-mark)
-      (and DEBUG (message "finished desktop-recover-autosave-list-dangling-buffers"))
+      (and DEBUG (message "finished desktop-recover-list-dangling-buffers"))
   output-list)))
 
-(defun desktop-recover-autosave-list-ordinary-buffers ()
+(defun desktop-recover-list-ordinary-buffers ()
   "List buffers, skipping dired buffers, internal and display (*) buffers.
 Returns a list of buffer objects.  Note that 'ordinary' buffers include
 'dangling' buffers without associated files."
@@ -203,7 +203,7 @@ Returns a list of buffer objects.  Note that 'ordinary' buffers include
           (preserve-buffer (current-buffer))
           (output-list)
         )
-    (and DEBUG (message "running desktop-recover-autosave-list-ordinary-buffers"))
+    (and DEBUG (message "running desktop-recover-list-ordinary-buffers"))
     (save-excursion
       (dolist (buffy (buffer-list))
         (set-buffer buffy) ; switch to buffer so we can check 'major-mode'
@@ -225,16 +225,16 @@ Returns a list of buffer objects.  Note that 'ordinary' buffers include
                 )))
       (switch-to-buffer preserve-buffer)
       (deactivate-mark)
-      (and DEBUG (message "finished desktop-recover-autosave-list-ordinary-buffers"))
+      (and DEBUG (message "finished desktop-recover-list-ordinary-buffers"))
   output-list)))
 
 
-(defun desktop-recover-autosave-list-ordinary-buffer-names ()
+(defun desktop-recover-list-ordinary-buffer-names ()
   "List names of ordinary buffers, skipping dired, internal and display (*) buffers.
 Returns a list of buffer names.  Note that 'ordinary' buffers include
 'dangling' buffers without associated files."
   (interactive)
-  (let* ( (ordinary-buffers (desktop-recover-autosave-list-ordinary-buffers))
+  (let* ( (ordinary-buffers (desktop-recover-list-ordinary-buffers))
           (buffname-list  (mapcar 'buffer-name ordinary-buffers) )
                  )
     buffname-list))
@@ -245,7 +245,7 @@ Returns a list of buffer names.  Note that 'ordinary' buffers include
 ;;         Make buffer name optional (generated default)
 ;; TODO -- only works with a list of strings.
 ;;         is there pp code that would work with, say, a list of objects like buffers?
-(defun desktop-recover-autosave-display-list-other-window (list buffer-name)
+(defun desktop-recover-display-list-other-window (list buffer-name)
   "Dipplays LIST of strings in BUFFER-NAME in a second window.
 Closes all other windows except for the current window and the newly created one."
   (delete-other-windows)
@@ -257,20 +257,20 @@ Closes all other windows except for the current window and the newly created one
   (insert (mapconcat 'identity list "\n"))   ;;; TODO how to insert a list?
   (deactivate-mark))
 
-(defun desktop-recover-autosave-print-ordinary-buffer-names ()
+(defun desktop-recover-print-ordinary-buffer-names ()
   "Print ordinary buffer names (non-directory, non-asterix, non-internal)."
   (interactive)
-  (let* ( (buff_list   (desktop-recover-autosave-list-ordinary-buffer-names) )
+  (let* ( (buff_list   (desktop-recover-list-ordinary-buffer-names) )
           (buff_string (mapconcat 'identity buff_list "\n"))
           )
     (print buff_string)
     ))
 
-(defun desktop-recover-autosave-insert-ordinary-buffer-names ()
+(defun desktop-recover-insert-ordinary-buffer-names ()
   "Insert ordinary buffer names (non-directory, non-asterix, non-internal).
 Inserts names into the current buffer, at point, one on each line."
   (interactive)
-  (let* ( (buff_list   (desktop-recover-autosave-list-ordinary-buffer-names) )
+  (let* ( (buff_list   (desktop-recover-list-ordinary-buffer-names) )
 ;          (buff_string (mapconcat 'identity buff_list "\n"))
           )
     (dolist (item buff_list)
@@ -286,39 +286,39 @@ Inserts names into the current buffer, at point, one on each line."
 ;; identifying message in it (current pid?) (Oh: list of stuff to
 ;; be saved... then you could check timestamps later to see if they
 ;; all were saved...)
-(defun desktop-recover-autosave-save-buffers-kill-terminal ()
+(defun desktop-recover-save-buffers-kill-terminal ()
   "Wrapper around save-buffers-kill-terminal to flag clean exits.
 Actually, it flags the fact that we *tried* to exit cleanly, since
 there's easy no way to check if all saves were completed before
 emacs died."
   (let* (( clean-exit-flag-file
            (concat
-            (desktop-recover-autosave-fixdir
-             desktop-recover-autosave-tmp-dir)
-            desktop-recover-autosave-clean-exit-flag))
+            (desktop-recover-fixdir
+             desktop-recover-tmp-dir)
+            desktop-recover-clean-exit-flag))
          ;; set these to override defaults
          (output-buffer nil)
          (error-buffer  nil)
          (cmd (format "touch %s" clean-exit-flag-file))
          )
-    (desktop-recover-autosave-save-with-danglers) ;; TODO double-check. right save?
+    (desktop-recover-save-with-danglers) ;; TODO double-check. right save?
     ;; we do this *after* the above, because that also clears the flag
     (shell-command cmd output-buffer error-buffer)
     (save-buffers-kill-terminal)
     ))
 
-(defun desktop-recover-autosave-clear-clean-save-flag ()
+(defun desktop-recover-clear-clean-save-flag ()
   "Remove the clean save flag (until the next clean save really happens)."
   (let* (( clean-exit-flag-file
            (concat
-            (desktop-recover-autosave-fixdir
-             desktop-recover-autosave-tmp-dir)
-            desktop-recover-autosave-clean-exit-flag))
+            (desktop-recover-fixdir
+             desktop-recover-tmp-dir)
+            desktop-recover-clean-exit-flag))
          )
     (delete-file clean-exit-flag-file)
     ))
 
-(defun desktop-recover-autosave-fixdir (dir &optional root)
+(defun desktop-recover-fixdir (dir &optional root)
   "Fixes the DIR.
 Conditions directory paths for portability and robustness.
 Some examples:
@@ -335,7 +335,7 @@ the default-directory or the ROOT setting."
             (expand-file-name dir root))))))
     return))
 
-(defun desktop-recover-autosave-force-save (dirname &optional release)
+(defun desktop-recover-force-save (dirname &optional release)
    "Force save of desktop by wiping out any existing file first.
 This ensures you will not have any question about modtimes
 getting in the way."
@@ -345,11 +345,11 @@ getting in the way."
    (desktop-save dirname release)
    )
 
-(defun desktop-recover-autosave-force-save-in-desktop-dir ()
+(defun desktop-recover-force-save-in-desktop-dir ()
   "Save the desktop in directory `desktop-dirname'."
   (interactive)
   (if desktop-dirname
-      (desktop-recover-autosave-force-save desktop-dirname)
+      (desktop-recover-force-save desktop-dirname)
     (call-interactively 'desktop-save))
   (message "Desktop saved in %s" (abbreviate-file-name desktop-dirname)))
 
@@ -475,7 +475,7 @@ the existance of the file."
              desktop-recover-location))))
     ;; now get the full file name.
     (concat
-     (desktop-recover-autosave-fixdir desktop-dirname)
+     (desktop-recover-fixdir desktop-dirname)
      desktop-base-file-name)
     )
 
@@ -684,10 +684,10 @@ These are buffers that existed when the last desktop save was done."
 (defun desktop-recover-clean-exit-p ()
   "Does it look like emacs exited cleanly?"
   (let* (
-         (tmp-dir (desktop-recover-autosave-fixdir
-                   desktop-recover-autosave-tmp-dir))
+         (tmp-dir (desktop-recover-fixdir
+                   desktop-recover-tmp-dir))
          (clean-exit-flag-file
-          (concat tmp-dir desktop-recover-autosave-clean-exit-flag))
+          (concat tmp-dir desktop-recover-clean-exit-flag))
          (retval (file-exists-p clean-exit-flag-file))
          )
     retval))
@@ -700,7 +700,7 @@ name, path, mode and dcb-code."
   (let* (
          (name) (path) (mode) (dcb-code)
          (clean-exit-p (desktop-recover-clean-exit-p))
-         (tmp-dir (desktop-recover-autosave-fixdir desktop-recover-autosave-tmp-dir))
+         (tmp-dir (desktop-recover-fixdir desktop-recover-tmp-dir))
          (recover-p t) ;; return value
          )
     ;; unpack the record
@@ -711,7 +711,7 @@ name, path, mode and dcb-code."
     (message "the temp directory: %s" tmp-dir) ;; DEBUG
     (cond ((and
             (string=
-             (desktop-recover-autosave-fixdir path)
+             (desktop-recover-fixdir path)
              tmp-dir)
             (clean-exit-p))
            (setq recover-p nil))
@@ -836,3 +836,4 @@ that this is doing it may be a good idea for me to do also."
 
 
 ;;; desktop-recover.el ends here
+
