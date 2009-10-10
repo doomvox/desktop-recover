@@ -40,21 +40,10 @@
 (require 'thingatpt)
 
 
-;;;;##########################################################################
-;;;;  User Options, Variables
-;;;;##########################################################################
-(defcustom desktop-recover-location "$HOME/.emacs.d"
-  "The default location from which we save and restore desktop files.
-Note: desktop.el has a desktop-dirname location, but that can not be
-used reliably as a user setting, because the code changes it under some
-circumstances.")
-(put 'desktop-recover-location 'risky-local-variable t)
-(setq desktop-recover-location
-      (desktop-recover-autosave-fixdir desktop-recover-location))
 
-;; TODO defcustom?
-(defvar desktop-recover-buffer-name "*Desktop Buffer Restore Menu*"
-  "Buffer name for the desktop restore menu.")
+;;======
+;; poor man's pod/lazy man's info:
+;;   dummy variables with documentation attached
 
 (defvar desktop-recover-desktop-list-doc ""
   "Many functions in this package work with a data-structure
@@ -69,29 +58,32 @@ name of the associated emacs mode (e.g. \"text-mode\"), and the
 \"desktop-create-buffer call\" is the code (in string form) that
 will need to be run to restore the buffer.")
 
+;;;;##########################################################################
+;;;;  User Options, Variables
+;;;;##########################################################################
+
+(defcustom desktop-recover-location "$HOME/.emacs.d"
+  "The default location from which we save and restore desktop files.
+Note: desktop.el has a desktop-dirname location, but that can not be
+used reliably as a user setting, because the code changes it under some
+circumstances.")
+(put 'desktop-recover-location 'risky-local-variable t)
+(setq desktop-recover-location
+      (desktop-recover-autosave-fixdir desktop-recover-location))
+
+;; TODO defcustom?
+(defvar desktop-recover-buffer-name "*Desktop Buffer Restore Menu*"
+  "Buffer name for the desktop restore menu.")
+
 ;; ======================
-;; read .emacs-desktop  files
+;; read desktop files (i.e. .emacs-desktop)
 
 ;; desktop.el just loads the .emacs-desktop files (which are elisp code)
-;; I want to deal with each file conditionally, so I need to parse it
-;; myself
-
-
-;; TODO need to set these in here? avoiding save during eval might be
-;; good... but I think I can do that by not enabling saves until we've
-;; reloaded...
-    ;; Avoid desktop saving during evaluation of desktop buffer.
-;;    (let ((desktop-save nil)
-;;           (desktop-first-buffer nil)
-
-;;           (owner (desktop-owner))
-
-
-;; TODO maybe, dirname should not be optional?
+;; I want to deal with each file conditionally, so I need to parse it myself
 (defun desktop-recover-interactive (&optional dirname)
   "Read the .emacs-desktop file, bring up menu to approve buffer restoration."
   (interactive) ;; maybe: interactive D?
-  (let* ( (file (desktop-read-initialization dirname))
+  (let* ( (desktop-file (desktop-recover-file-path dirname))
           ;; an .emacs-desktop file is in sections labeled like so:
           (global-section-marker ";; Global section")
           (buffer-section-marker ";; Buffer section")
@@ -104,43 +96,31 @@ will need to be run to restore the buffer.")
           (buffer-section "")
           (desktop-list)  ;; list of lists, one row for each desktop buffer
          )
-    (find-file file)
-
-    ;; parse into global and buffer sections
-    ;; TODO need to check the file format version, no?  Warn if it's wrong.
-    (goto-char (point-min))
-    (re-search-forward global-section-pattern)
-    (forward-line 1)
-    (let* ( (beg (point) )
-            (end)
-            )
-      (re-search-forward buffer-section-pattern)
-      (previous-line 1)
-      (move-end-of-line 1)
-      (setq end (point))
-      (setq global-section (buffer-substring beg end))
-      )
-
-    (forward-line 2)
-    (let* ( (beg (point) )
-            (end (point-max))
-            )
-      (setq buffer-section (buffer-substring beg end))
-      )
-
-    (eval (read global-section))
-
-    (setq desktop-list
-          (desktop-parse-buffer-section buffer-section))
-
-    ;; display the desktop-list in a buffer with mode
-    ;; designed for interactive selection.
-    (desktop-recover-show-menu desktop-list)
-
-    ;; TODO do I need to do this here? (I doubt it).
-    ;;    (desktop-read-tail)
+    (cond (desktop-file
+           (find-file desktop-file)
+           ;; parse into global and buffer sections
+           ;; TODO need to check the file format version, no?  Warn if it's wrong.
+           (goto-char (point-min))
+           (re-search-forward global-section-pattern)
+           (forward-line 1)
+           (let* ((beg (point) )
+                  (end))
+             (re-search-forward buffer-section-pattern)
+             (previous-line 1)
+             (move-end-of-line 1)
+             (setq end (point))
+             (setq global-section (buffer-substring beg end)))
+           (forward-line 2)
+           (let* ((beg (point) )
+                  (end (point-max)))
+             (setq buffer-section (buffer-substring beg end)))
+           (eval (read global-section))
+           (setq desktop-list
+                 (desktop-parse-buffer-section buffer-section))
+           ;; display the desktop-list in an interactive selection buffer
+           (desktop-recover-show-menu desktop-list)
+           ))
     ))
-
 
 (defun desktop-parse-buffer-section (buffer-section)
   "Associate file system names with desktop-create-buffer code.
@@ -150,83 +130,74 @@ desktop-create-buffer function calls, and picking out names from
 them to use for user confirmation.  Returns the desktop-list, a
 list of lists, with one row per buffer, where each row is a
 list (in this order) of: name, path, mode, and the
-desktop-create-buffer call.  See \[[desktop-recover-desktop-list-doc]]."
+desktop-create-buffer call.  See \\[desktop-recover-desktop-list-doc]."
   (interactive) ;; DEBUG only
   (let* (
-          ( dcb-string "(desktop-create-buffer" )
-          ( dcb-pattern (format "^[ \t]*?%s[ \t]" dcb-string) )
-          ( dcb-list )
-          ( dcb-lines )
-          ( file-format )
-          ( mode )
-          ( file-name ) ;; full name, with path
-          ( name )      ;; file/dir name without path
-          ( misc )      ;;  a list of stuff... multiple paths for tree dired?
-          ( first-misc ) ;; the primary dir in dired-mode (with trailing slash)
-          ( path )
-          ( record )
-          ( desktop-list )
+         ( dcb-string "(desktop-create-buffer" )
+         ( dcb-pattern (format "^[ \t]*?%s[ \t]" dcb-string) )
+         ( dcb-list )
+         ( dcb-lines )
+         ( file-format )
+         ( mode )
+         ( file-name ) ;; full name, with path
+         ( name )      ;; file/dir name without path
+         ( misc )      ;;  a list of stuff... multiple paths for tree dired?
+         ( first-misc ) ;; the primary dir in dired-mode (with trailing slash)
+         ( path )
+         ( record )
+         ( desktop-list )
          )
-
     ;; here we split on the initial funcall string, then prepend it again
     ;; to have the list of complete function calls
     (setq dcb-list
           (mapcar (lambda (item)
                     (concat dcb-string " " item))
-                    (split-string buffer-section dcb-pattern t)))
-
+                  (split-string buffer-section dcb-pattern t)))
     (dolist (dcb-code dcb-list)
       (message "dcb code: %s\n" dcb-code)
-
-        ;; parse dcb-code as a list
-        (setq dcb-lines (split-string dcb-code "\n" t))
-
-        (setq file-format (car (cdr (split-string (nth 0 dcb-lines) " " t))))
-        (setq file-name (desktop-recover-clean-string (nth 1 dcb-lines)))
-        (setq name (desktop-recover-clean-string (nth 2 dcb-lines)))
-        (setq mode (desktop-recover-clean-string (nth 3 dcb-lines)))
-        (setq misc (nth 8 dcb-lines))  ;; will need extra clean?
-
-        (cond ((string= mode "dired-mode")
-               (message "case dired")
-               (setq first-misc (desktop-recover-snag-first-item misc))
-               (setq path first-misc))
-              (t
-               (message "default (non-dired)")
-               (setq path file-name)
-               ))
-
-        (setq record
-              (append
-               (mapcar 'eval
-                       '(name path mode dcb-code))
-               record))
-
-        (setq desktop-list (cons record desktop-list))
+      ;; parse dcb-code as a list
+      (setq dcb-lines (split-string dcb-code "\n" t))
+      ;;
+      (setq file-format (car (cdr (split-string (nth 0 dcb-lines) " " t))))
+      (setq file-name (desktop-recover-clean-string (nth 1 dcb-lines)))
+      (setq name (desktop-recover-clean-string (nth 2 dcb-lines)))
+      (setq mode (desktop-recover-clean-string (nth 3 dcb-lines)))
+      (setq misc (nth 8 dcb-lines))  ;; will need extra clean?
+      ;;
+      (cond ((string= mode "dired-mode")
+             (message "case dired")
+             (setq first-misc (desktop-recover-snag-first-item misc))
+             (setq path first-misc))
+            (t
+             (message "default (non-dired)")
+             (setq path file-name)
+             ))
+      (setq record
+            (append
+             (mapcar 'eval
+                     '(name path mode dcb-code))
+             record))
+      (setq desktop-list (cons record desktop-list))
       )
     desktop-list))
 
 (defun desktop-recover-clean-string (string)
   "Strip leading/trailing whitespace, and also, leading single-quotes."
-  (let (
-         (strip-lead-space-pattern "^[ \t]*\\([^ \t]*.*\\)")
-         (strip-trail-space-pattern "\\(.*?\\)[ \t]*$")
-
-         (strip-lead-apostrophe-pattern "^'*\\(.*\\)")
-         (temp1)
-         (temp2)
-         (clean)
-         )
+  (let ((strip-lead-space-pattern "^[ \t]*\\([^ \t]*.*\\)")
+        (strip-trail-space-pattern "\\(.*?\\)[ \t]*$")
+        (strip-lead-apostrophe-pattern "^'*\\(.*\\)")
+        (temp1)
+        (temp2)
+        (clean)
+        )
     (if
         (string-match strip-lead-space-pattern string)
         (setq temp1 (match-string 1 string))
       (setq temp1 string))
-
     (if
         (string-match strip-trail-space-pattern temp1)
         (setq temp2 (match-string 1 temp1))
       (setq temp2 temp1))
-
     (string-match strip-lead-apostrophe-pattern temp2)
     (setq clean (match-string 1 temp2))
     clean))
@@ -235,20 +206,20 @@ desktop-create-buffer call.  See \[[desktop-recover-desktop-list-doc]]."
   "Get's the first item out of the list stored in LIST-STRING.
 Intended to deal with the 'desktop-buffer-misc' field of a desktop-create-buffer call.
 Which may look something like:
-  '(\"/home/doom/End/Pit/\")    "
-  (let* (
-          (list (eval (read list-string)))
-          (first-item (car list))
+  '(\"/home/doom/End/Pit/\")
+Note: This is not just a wrapper around \"car\", it does the
+conversion from string to list first."
+  (let* ((list (eval (read list-string)))
+         (first-item (car list))
          )
     first-item))
 
-;; TODO rename to: desktop-full-name-and-path or something?
-;; But Why not just use desktop-full-file-name directly?
-;; TODO Q: should this check for file existance? A: no.
-(defun desktop-read-initialization (&optional dirname)
+(defun desktop-recover-file-path (&optional dirname)
   "Returns the full name and path of the desktop file.
-Uses the standard name \"\", located either in the given
-DIRNAME or in the default `desktop-recover-location'. "
+Uses the standard name \".emacs.desktop\" (determined from
+`desktop-base-file-name'), located either in the given DIRNAME or
+in the default `desktop-recover-location'.  It does not check for
+the existance of the file."
     (setq desktop-dirname
           (file-name-as-directory
            (expand-file-name
@@ -258,8 +229,229 @@ DIRNAME or in the default `desktop-recover-location'. "
              ;; Otherwise fall back on the default
              desktop-recover-location))))
     ;; now get the full file name.
-    (desktop-full-file-name dirname)
+    (concat
+     (desktop-recover-autosave-fixdir desktop-dirname)
+     desktop-base-file-name)
     )
+
+;;========
+;; interactive buffer selection for recovery
+
+;; Display a list of marker, name, path, mode,
+;; where the marker is set ("*") if buffer is to be loaded,
+;; The return key is the "do-it" that accepts the displayed settings,
+;; and the "m" and "u" keys control whether the current line is set
+
+(defvar desktop-recover-unmarker " "
+  "Symbol used for an unmarked buffer that will not be reloaded by default.")
+
+(defvar desktop-recover-marker "*"
+  "Symbol used for a marked buffer that will be reloaded by default.")
+
+(define-derived-mode desktop-recover-mode
+  text-mode "desktop-recover"
+  "Major mode to display candidates for buffers to be restored when re-starting emacs.
+\\{desktop-recover-mode-map}"
+  (use-local-map desktop-recover-mode-map)
+  )
+
+(define-key desktop-recover-mode-map "\C-m" 'desktop-recover-do-it)
+(define-key desktop-recover-mode-map "m"    'desktop-recover-mark-move-down)
+(define-key desktop-recover-mode-map "u"    'desktop-recover-unmark-move-down)
+(define-key desktop-recover-mode-map "n"    'next-line)
+(define-key desktop-recover-mode-map "p"    'previous-line)
+(define-key desktop-recover-mode-map "*"    'desktop-recover-mark-move-down)
+
+;; TODO SOON need a more complicated routine that doesn't just run the dcb
+;; but also gets the path, checks for a newer autosave
+;;   (if (desktop-recover-newer-auto-save path)
+;;       (recover-this-file))
+;; Q: is there any reason not to *always* do this recover step?
+;; might want to be able to toggle it off, so check the trailing marker as well
+(defun desktop-recover-do-it ()
+  "Accept the current settings of the restore menu buffer.
+Runs the appropriate \"descktop-create-buffer\" calls stored
+in the desktop-list data structure."
+  (interactive)
+  (let* (
+         (marker-pattern "^[ \t]*\\*") ;; line begins with asterix
+         (line-count (count-lines (point-min) (point-max)))
+         (dcb-code)
+         (dcb-list)
+         )
+    (goto-char (point-min))
+    (while ;; loop over all lines in buffer
+        (progn
+          (save-excursion
+            (move-beginning-of-line 1)
+            ;; if line is marked with an asterix...
+            (if (thing-at-point-looking-at marker-pattern)
+                (progn
+                  (setq dcb-code
+                        (get-char-property (point) 'dcb))
+                  ;; Save up the dcb-code sexps in a list, to execute later
+                  (setq dcb-list (cons (eval dcb-code) dcb-list))
+                  )))
+          (forward-line 1)
+          (< (line-number-at-pos) line-count)
+    ))
+    (dolist (dcb dcb-list)
+      (eval (read dcb)))
+    ))
+
+(defun desktop-recover-mark ()
+  "Set the marker for the current line: add leading asterix."
+  (interactive)
+  (save-excursion
+  (setq buffer-read-only nil)
+    (move-beginning-of-line 1)
+    (forward-char 1)
+    (delete-char 1)
+    (insert desktop-recover-marker)
+    (setq overwrite-mode nil)
+    (setq buffer-read-only 't)
+  ))
+
+(defun desktop-recover-unmark ()
+  "Unset the marker for the current line: remove leading asterix."
+  (interactive)
+  (save-excursion
+  (setq buffer-read-only nil)
+    (move-beginning-of-line 1)
+    (forward-char 1)
+    (delete-char 1)
+    (insert desktop-recover-unmarker)
+    (setq overwrite-mode nil)
+    (setq buffer-read-only 't)
+  ))
+
+(defun desktop-recover-mark-move-down ()
+  "Set marker on the current line, move down one."
+  (interactive)
+  (desktop-recover-mark)
+  (forward-line 1))
+
+(defun desktop-recover-unmark-move-down ()
+  "Unset marker of the current line, move down one."
+  (interactive)
+  (desktop-recover-unmark)
+  (forward-line 1))
+
+;; TODO
+;; Do I need to add commands to allow the user to manually
+;; reject an auto-save file?
+
+;; This is intended to be run at emacs init time (run from
+;; desktop-recover-interactive) so there's no need for a keybinding
+(defun desktop-recover-show-menu (desktop-list)
+  "Displays info about buffers that are candidates to be restored.
+These are buffers that existed when the last desktop save was done."
+;; TODO If there's a reason to allow concurrent usage? Will need
+;; multiple unique buffer names rather than just desktop-recover-buffer-name
+  (interactive)
+  (let* (
+          (menu-contents)
+         )
+    (setq menu-contents (desktop-recover-build-menu-contents desktop-list))
+
+    (switch-to-buffer desktop-recover-buffer-name)
+    (setq buffer-read-only nil)
+    (mark-whole-buffer)               ;; TODO find more elispy way?
+    (delete-region (mark) (point))
+    (insert menu-contents)
+    (desktop-recover-mode)
+    (setq buffer-read-only 't)
+  ))
+
+(defun desktop-recover-build-menu-contents (desktop-list)
+  "Builds the menu text from the DESKTOP-LIST data."
+  (let (
+         (name) (path) (mode) (dcb-code)
+         (marker "*")
+         (hash-mark "#")
+         (line "")
+         (menu-contents "")
+         (line-fmt "%3s%-35s%-42s")
+         )
+         (dolist (record desktop-list)
+           ;; unpack the record
+           (setq name     (nth 0 record))
+           (setq path     (nth 1 record))
+           (setq mode     (nth 2 record))
+           (setq dcb-code (nth 3 record))
+           (cond ((desktop-recover-by-default-p record)
+                  (setq line (format
+                              line-fmt
+                              (concat " " desktop-recover-marker " ")
+                              name
+                              path
+                              )))
+                  (t
+                   (setq line (format line-fmt
+                               (concat " " desktop-recover-unmarker " ")
+                               name
+                               path
+                               ))
+                   ))
+           (put-text-property 0 1 'dcb dcb-code line)
+           ;; TODO make this part of the above line-fmt?
+           (if (desktop-recover-newer-auto-save path)
+               (set1 line (concat line " " hash-mark)))
+           (setq menu-contents
+                 (concat menu-contents line "\n"))
+           )
+         menu-contents))
+
+(defun desktop-recover-clean-exit-p ()
+  "Does it look like emacs exited cleanly?"
+  (let* (
+         (tmp-dir (desktop-recover-autosave-fixdir
+                   desktop-recover-autosave-tmp-dir))
+         (clean-exit-flag-file
+          (concat tmp-dir desktop-recover-autosave-clean-exit-flag))
+         (retval (file-exists-p clean-exit-flag-file))
+         )
+    retval))
+
+(defun desktop-recover-by-default-p (record)
+  "Examine RECORD to determine if this buffer should be reloaded by default.
+A file should not be re-loaded if was an automatically saved temporary
+buffer and emacs exited cleanly.  RECORD should be a list of
+name, path, mode and dcb-code."
+  (let* (
+         (name) (path) (mode) (dcb-code)
+         (clean-exit-p (desktop-recover-clean-exit-p))
+         (tmp-dir (desktop-recover-autosave-fixdir desktop-recover-autosave-tmp-dir))
+         (recover-p t) ;; return value
+         )
+    ;; unpack the record
+    (setq name     (nth 0 record))
+    (setq path     (nth 1 record))
+    (setq mode     (nth 2 record))
+    (setq dcb-code (nth 3 record))
+    (message "the temp directory: %s" tmp-dir) ;; DEBUG
+    (cond ((and
+            (string=
+             (desktop-recover-autosave-fixdir path)
+             tmp-dir)
+            (clean-exit-p))
+           (setq recover-p nil))
+          )
+    recover-p))
+
+(defun desktop-recover-newer-auto-save (path)
+  "Given PATH (full path and file name) check for newer auto-save file."
+  (let* (
+      ;; (name (file-name-nondirectory path)) ;; could just pass that in too
+      ;; (a-s-name (format "#%s#" name))
+         (a-s-path (make-auto-save-file-name path))
+         )
+    ;; if a-s-path does not exist, this is nil
+    (file-newer-than-file-p a-s-path path)
+    ))
+
+;;=======
+;; boneyard
 
 (defun desktop-read-initialization-old (&optional dirname)
   "Does precisely the same folderol as the desktop-read function,
@@ -362,228 +554,6 @@ that this is doing it may be a good idea for me to do also."
                        (length desktop-buffer-args-list))
              ""))
   )
-
-;;; The following code handles the display of  marker, name, path, mode,
-;;; where the is set ("*") if buffer is to be loaded,
-;;; the return key is the "do-it" that accepts the displayed settings.
-;;; and the "m" and "u" keys control whether the current line is set
-
-(defvar desktop-recover-unmarker " "
-  "Symbol used for an unmarked buffer that will not be reloaded by default.")
-
-(defvar desktop-recover-marker "*"
-  "Symbol used for a marked buffer that will be reloaded by default.")
-
-(define-derived-mode desktop-recover-mode
-  text-mode "desktop-recover"
-  "Major mode to display candidates for buffers to be restored when re-starting emacs.
-\\{desktop-recover-mode-map}"
-  (use-local-map desktop-recover-mode-map)
-  )
-
-(define-key desktop-recover-mode-map "\C-m" 'desktop-recover-do-it)
-(define-key desktop-recover-mode-map "m"    'desktop-recover-mark-move-down)
-(define-key desktop-recover-mode-map "u"    'desktop-recover-unmark-move-down)
-(define-key desktop-recover-mode-map "n"    'next-line)
-(define-key desktop-recover-mode-map "p"    'previous-line)
-(define-key desktop-recover-mode-map "*"    'desktop-recover-mark-move-down)
-
-;; TODO SOON need a more complicated routine that doesn't just run the dcb
-;; but also gets the path, checks for a newer autosave
-;;   (if (desktop-recover-newer-auto-save path)
-;;       (recover-this-file))
-;; Q: is there any reason not to *always* do this recover step?
-(defun desktop-recover-do-it ()
-  "Accept the current settings of the restore menu buffer.
-Runs the appropriate \"descktop-create-buffer\" calls stored
-in the desktop-list data structure."
-  (interactive)
-  (let* (
-         (marker-pattern "^[ \t]*\\*") ;; line begins with asterix
-         (line-count (count-lines (point-min) (point-max)))
-         (dcb-code)
-         (dcb-list)
-         )
-    (goto-char (point-min))
-    (while ;; loop over all lines in buffer
-        (progn
-          (save-excursion
-            (move-beginning-of-line 1)
-            ;; if line is marked with an asterix...
-            (if (thing-at-point-looking-at marker-pattern)
-                (progn
-                  (setq dcb-code
-                        (get-char-property (point) 'dcb))
-                  ;; Save up the dcb-code sexps in a list, to execute later
-                  (setq dcb-list (cons (eval dcb-code) dcb-list))
-                  )))
-          (forward-line 1)
-          (< (line-number-at-pos) line-count)
-    ))
-    (dolist (dcb dcb-list)
-      (eval (read dcb)))
-    ))
-
-
-(defun desktop-recover-mark ()
-  "Set the marker for the current line: add leading asterix."
-  (interactive)
-  (save-excursion
-  (setq buffer-read-only nil)
-    (move-beginning-of-line 1)
-    (forward-char 1)
-    (delete-char 1)
-    (insert desktop-recover-marker)
-    (setq overwrite-mode nil)
-    (setq buffer-read-only 't)
-  ))
-
-
-(defun desktop-recover-unmark ()
-  "Unset the marker for the current line: remove leading asterix."
-  (interactive)
-  (save-excursion
-  (setq buffer-read-only nil)
-    (move-beginning-of-line 1)
-    (forward-char 1)
-    (delete-char 1)
-    (insert desktop-recover-unmarker)
-    (setq overwrite-mode nil)
-    (setq buffer-read-only 't)
-  ))
-
-(defun desktop-recover-mark-move-down ()
-  "Set marker on the current line, move down one."
-  (interactive)
-  (desktop-recover-mark)
-  (forward-line 1))
-
-(defun desktop-recover-unmark-move-down ()
-  "Unset marker of the current line, move down one."
-  (interactive)
-  (desktop-recover-unmark)
-  (forward-line 1))
-
-;; TODO
-;; Do I need to add commands to allow the user to manually
-;; reject an auto-save file?
-
-;; This is intended to be run at emacs init time (run from
-;; desktop-recover-interactive) so there's no need for a keybinding
-(defun desktop-recover-show-menu (desktop-list)
-  "Displays info about buffers that are candidates to be restored.
-These are buffers that existed when the last 'desktop-recover' was
-done." ;; TODO wrong word? Is it "recover" or "save"?
-;; TODO currently uses one, fixed defvar value: desktop-recover-buffer-name
-;; Any reason to allow concurrent usage? (need multiple unique buffer names then)
-  (interactive)
-  (let* (
-          (menu-contents)
-         )
-    (setq menu-contents (desktop-recover-build-menu-contents desktop-list))
-
-    (switch-to-buffer desktop-recover-buffer-name)
-    (setq buffer-read-only nil)
-    (mark-whole-buffer)               ;; TODO find more elispy way?
-    (delete-region (mark) (point))
-    (insert menu-contents)
-    (desktop-recover-mode)
-    (setq buffer-read-only 't)
-  ))
-
-(defun desktop-recover-build-menu-contents (desktop-list)
-  "Builds the menu text from the DESKTOP-LIST data."
-  (let (
-         (name) (path) (mode) (dcb-code)
-         (marker "*")
-         (hash-mark "#")
-         (line "")
-         (menu-contents "")
-         (line-fmt "%3s%-35s%-42s")
-         )
-         (dolist (record desktop-list)
-           ;; unpack the record
-           (setq name     (nth 0 record))
-           (setq path     (nth 1 record))
-           (setq mode     (nth 2 record))
-           (setq dcb-code (nth 3 record))
-
-           (cond ((desktop-recover-by-default-p record)
-                  (setq line (format
-                              line-fmt
-                              (concat " " desktop-recover-marker " ")
-                              name
-                              path
-                              )))
-                  (t
-                   (setq line (format line-fmt
-                               (concat " " desktop-recover-unmarker " ")
-                               name
-                               path
-                               ))
-                   ))
-           (put-text-property 0 1 'dcb dcb-code line)
-
-           ;; TODO make this part of the above line-fmt?
-           (if (desktop-recover-newer-auto-save path)
-               (set1 line (concat line " " hash-mark)))
-
-           (setq menu-contents
-                 (concat menu-contents line "\n"))
-           )
-         menu-contents))
-
-(defun desktop-recover-clean-exit-p ()
-  "Does it look like emacs exited cleanly?"
-  (let* (
-         (tmp-dir (desktop-recover-autosave-fixdir
-                   desktop-recover-autosave-tmp-dir))
-         (clean-exit-flag-file
-          (concat tmp-dir desktop-recover-autosave-clean-exit-flag))
-         (retval (file-exists-p clean-exit-flag-file))
-         )
-    retval))
-
-(defun desktop-recover-by-default-p (record)
-  "Examine RECORD to determine if this buffer should be reloaded by default.
-A file should not be re-loaded if was an automatically saved temporary
-buffer and emacs exited cleanly.  RECORD should be a list of
-name, path, mode and dcb-code."
-  (let* (
-         (name) (path) (mode) (dcb-code)
-         (clean-exit-p (desktop-recover-clean-exit-p))
-         (tmp-dir (desktop-recover-autosave-fixdir desktop-recover-autosave-tmp-dir))
-         (recover-p t) ;; return value
-         )
-    ;; unpack the record
-    (setq name     (nth 0 record))
-    (setq path     (nth 1 record))
-    (setq mode     (nth 2 record))
-    (setq dcb-code (nth 3 record))
-
-    (message "the temp directory: %s" tmp-dir) ;; DEBUG
-
-    (cond ((and
-            (string=
-             (desktop-recover-autosave-fixdir path)
-             tmp-dir)
-            (clean-exit-p))
-           (setq recover-p nil))
-          )
-    recover-p))
-
-
-(defun desktop-recover-newer-auto-save (path)
-  "Given PATH (full path and file name) check for newer auto-save file."
-  (let* (
-      ;; (name (file-name-nondirectory path)) ;; could just pass that in too
-      ;; (a-s-name (format "#%s#" name))
-         (a-s-path (make-auto-save-file-name path))
-         )
-    ;; if a-s-path does not exist, this is nil
-    (file-newer-than-file-p a-s-path path)
-    ))
-
 
 
 ;;; desktop-recover.el ends here
