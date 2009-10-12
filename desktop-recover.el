@@ -106,12 +106,17 @@ circumstances.")
 (setq desktop-recover-location
       (desktop-recover-fixdir desktop-recover-location))
 
-;; ;; TODO going away soon
-;; (defvar desktop-recover-clean-exit-flag "desktop_recover_clean_exit.flag"
-;;   "The existance of a file of this name signals that we did a clean exit.")
-
 (defvar desktop-recover-buffer-name "*Desktop Buffer Restore Menu*"
   "Buffer name for the desktop restore menu.")
+
+(defvar desktop-recover-clean-exit-flag "desktop_recover_clean_exit.flag"
+  "The existance of a file of this name signals that we did a clean exit.")
+
+
+;; Bound locally in `desktop-read' in desktop.el
+(defvar desktop-buffer-ok-count)
+(defvar desktop-buffer-fail-count)
+
 
 ;;======================
 ;; saving desktop files
@@ -164,7 +169,6 @@ See: `desktop-recover-dangling-buffers-doc'"
     (deactivate-mark)
     ;; (desktop-save-in-desktop-dir)
     (desktop-recover-force-save-in-desktop-dir)
-;;    (desktop-recover-clear-clean-save-flag)  ;; TODO about to go away
   ))
 
 (defun desktop-recover-display-dangling-buffers ()
@@ -178,7 +182,8 @@ Returns a list of buffer objects."
     ))
 
 ;; TODO should this be refactored to use desktop-recover-list-ordinary-buffers ?
-;; that would change behavior: skips dired buffers
+;; note that that would change behavior: skips dired buffers (a good thing?
+;; should be settable behavior?)
 (defun desktop-recover-list-dangling-buffers ()
   "List buffers without files or directories, skipping internal and display (*) buffers.
 Returns a list of buffer objects."
@@ -259,10 +264,6 @@ Returns a list of buffer names.  Note that 'ordinary' buffers include
                  )
     buffname-list))
 
-;; TODO -- there's a need for window handling utilities and usage standards
-;; TODO -- Make buffer name optional (generated default)
-;; TODO -- only works with a list of strings.
-;;         is there pp code that would work with, say, a list of objects like buffers?
 (defun desktop-recover-buffer-safe-to-overwrite-p (buffer-name)
   "Verify that a buffer is safe to be over-written.
 Currently this is just a check to make sure the given name
@@ -270,8 +271,12 @@ follows the convention for dynamic display buffers: it must
 begin with a leading asterix."
   (string= (substring buffer-name 0 1) "*"))
 
+;; TODO -- there's a need for window handling utilities and usage standards
+;; TODO -- Make buffer name optional? (have a generated default)
+;; TODO -- only works with a list of strings.
+;;         is there pp code that would work with, say, a list of objects like buffers?
 (defun desktop-recover-list-in-other-window (list buffer-name)
-  "Dipplays LIST of strings in BUFFER-NAME in a second window.
+  "Displays LIST of strings in BUFFER-NAME in a second window.
 Closes all other windows except for the current window and the newly created one."
   (unless
       (desktop-recover-buffer-safe-to-overwrite-p buffer-name)
@@ -305,58 +310,51 @@ Inserts names into the current buffer, at point, one on each line."
             (insert "\n")
     )))
 
-;; TODO request a hook to do this.  Doesn't seem to exist.
-;; TODO
-;; Of the various ways of doing this, let's try just touching a file here,
-;; which the autosave code will delete. (would the reverse be better?)
-;; TODO better than touch: use emacs to save a buffer that has an
-;; identifying message in it (current pid?) (Oh: list of stuff to
-;; be saved... then you could check timestamps later to see if they
-;; all were saved...)
+(defun desktop-recover-clear-clean-save-flag ()
+  "Remove the clean save flag (until the next clean save really happens)."
+  (let* (( clean-exit-flag-file
+           (concat
+            (desktop-recover-fixdir
+             desktop-recover-tmp-dir)
+            desktop-recover-clean-exit-flag))
+         )
+    (delete-file clean-exit-flag-file)
+    ))
+
 (defun desktop-recover-save-buffers-kill-terminal ()
+  "Wrapper around save-buffers-kill-terminal to flag clean exits.
+Actually, it flags the fact that we *tried* to exit cleanly, since
+there's easy no way to check if all saves were completed before
+emacs died."
+  (interactive)
+  (let* ((clean-exit-flag-file
+           (concat
+            (desktop-recover-fixdir
+             desktop-recover-tmp-dir)
+            desktop-recover-clean-exit-flag))
+         ;; set these to override defaults
+         (output-buffer nil)
+         (error-buffer  nil)
+         (cmd (format "touch %s" clean-exit-flag-file))
+         )
+    (desktop-recover-save-with-danglers) ;; TODO double-check. right save?
+    ;; we do this *after* the above, because that also clears the flag
+    (shell-command cmd output-buffer error-buffer)
+    (save-buffers-kill-terminal)
+    ))
+
+;; TODO this is ill-concieved... might need code that
+;; forcibly deletes danglers even if they've been saved before
+;; , so that they won't be saved like regular files here.
+(defun desktop-recover-save-buffers-kill-terminal-exp ()
   "For doing a \"clean\" exit, without need to save danglers.
 Essentially a wrapper around save-buffers-kill-terminal, intended
 to be bound to the usual keybinding for exiting emacs."
-;; TODO note, alternately, we could do this with the kill-emacs-hook.
-
-;;  (let* (
-;;          ;; TODO going away soon.
-;;          (clean-exit-flag-file
-;;            (concat
-;;             (desktop-recover-fixdir
-;;              desktop-recover-tmp-dir)
-;;             desktop-recover-clean-exit-flag))
-
-;;          ;; set these to override defaults
-;;          (output-buffer nil)
-;;          (error-buffer  nil)
-;;          (cmd (format "touch %s" clean-exit-flag-file))
-
-;;         )
-;;     (desktop-recover-save-with-danglers) ;; TODO double-check. right save?
-;;     ;; we do this *after* the above, because that also clears the flag
-;;     (shell-command cmd output-buffer error-buffer)
-;;     ;; TODO we're just doing a save here that *doesn't* save the danglers.
-;;     ;; thus, all of the above then all goes away.
-
-    ;; doing one last save *without* the dangling buffers
+;; TODO alternately, we could do this with the kill-emacs-hook.
+  ;; doing one last save *without* the dangling buffers
   (desktop-recover-force-save-in-desktop-dir)
   (save-buffers-kill-terminal)
-;;  )
   )
-
-;; ;; TODO about to go away
-;; (defun desktop-recover-clear-clean-save-flag ()
-;;   "Remove the clean save flag (until the next clean save really happens)."
-;;   (let* (( clean-exit-flag-file
-;;            (concat
-;;             (desktop-recover-fixdir
-;;              desktop-recover-tmp-dir)
-;;             desktop-recover-clean-exit-flag))
-;;          )
-;;     (delete-file clean-exit-flag-file)
-;;     ))
-
 
 (defun desktop-recover-force-save (dirname &optional release)
    "Force save of desktop by wiping out any existing file first.
@@ -581,6 +579,7 @@ in the desktop-list data structure."
          (dcb-code)
          (dcb-list)
          )
+    ;; (desktop-read-initialization-old) ;; TODO shot in the dark (again)
     (goto-char (point-min))
     (while ;; loop over all lines in buffer
         (progn
@@ -597,8 +596,20 @@ in the desktop-list data structure."
           (forward-line 1)
           (< (line-number-at-pos) line-count)
           ))
-    (dolist (dcb dcb-list)
-      (eval (read dcb)))
+
+    ;; TODO it appears that before doing an eval/read of some dcb blocks,
+    ;; I need to mimic the context they would've run inside of desktop.el
+    (let ((desktop-first-buffer nil)
+          (desktop-buffer-ok-count 0)
+          (desktop-buffer-fail-count 0)
+          (owner (desktop-owner))
+          ;; Avoid desktop saving during evaluation of desktop buffer.
+          (desktop-save nil))
+
+      (dolist (dcb dcb-list)
+        (eval (read dcb)))
+      )
+
     ))
 
 (defun desktop-recover-mark ()
@@ -653,7 +664,6 @@ These are buffers that existed when the last desktop save was done."
   (interactive)
   (let* ((menu-contents))
     (setq menu-contents (desktop-recover-build-menu-contents desktop-list))
-
     (switch-to-buffer desktop-recover-buffer-name)
     (setq buffer-read-only nil)
     (mark-whole-buffer)               ;; TODO find more elispy way?
@@ -692,7 +702,8 @@ These are buffers that existed when the last desktop save was done."
                                name
                                path
                                ))
-                   ))
+                   )
+                  )
            (put-text-property 0 1 'dcb dcb-code line)
            ;; TODO make this part of the above line-fmt?
            (if (desktop-recover-newer-auto-save path)
