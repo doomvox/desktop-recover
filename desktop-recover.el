@@ -106,9 +106,9 @@ circumstances.")
 (setq desktop-recover-location
       (desktop-recover-fixdir desktop-recover-location))
 
-;; TODO going away soon
-(defvar desktop-recover-clean-exit-flag "desktop_recover_clean_exit.flag"
-  "The existance of a file of this name signals that we did a clean exit.")
+;; ;; TODO going away soon
+;; (defvar desktop-recover-clean-exit-flag "desktop_recover_clean_exit.flag"
+;;   "The existance of a file of this name signals that we did a clean exit.")
 
 (defvar desktop-recover-buffer-name "*Desktop Buffer Restore Menu*"
   "Buffer name for the desktop restore menu.")
@@ -164,7 +164,7 @@ See: `desktop-recover-dangling-buffers-doc'"
     (deactivate-mark)
     ;; (desktop-save-in-desktop-dir)
     (desktop-recover-force-save-in-desktop-dir)
-    (desktop-recover-clear-clean-save-flag)  ;; TODO about to go away
+;;    (desktop-recover-clear-clean-save-flag)  ;; TODO about to go away
   ))
 
 (defun desktop-recover-display-dangling-buffers ()
@@ -314,43 +314,48 @@ Inserts names into the current buffer, at point, one on each line."
 ;; be saved... then you could check timestamps later to see if they
 ;; all were saved...)
 (defun desktop-recover-save-buffers-kill-terminal ()
-  "Wrapper around save-buffers-kill-terminal to flag clean exits.
-Actually, it flags the fact that we *tried* to exit cleanly, since
-there's easy no way to check if all saves were completed before
-emacs died."
-  (let* (
-         ;; TODO going away soon.
-         (clean-exit-flag-file
-           (concat
-            (desktop-recover-fixdir
-             desktop-recover-tmp-dir)
-            desktop-recover-clean-exit-flag))
-         ;; set these to override defaults
-         (output-buffer nil)
-         (error-buffer  nil)
-         (cmd (format "touch %s" clean-exit-flag-file))
-         )
-    (desktop-recover-save-with-danglers) ;; TODO double-check. right save?
-    ;; we do this *after* the above, because that also clears the flag
-    (shell-command cmd output-buffer error-buffer)
+  "For doing a \"clean\" exit, without need to save danglers.
+Essentially a wrapper around save-buffers-kill-terminal, intended
+to be bound to the usual keybinding for exiting emacs."
+;; TODO note, alternately, we could do this with the kill-emacs-hook.
 
-    ;; TODO we're just doing a save here that *doesn't* save the danglers.
-    ;; thus, all of the above then all goes away.
-    ;; (desktop-recover-force-save-in-desktop-dir)
-    (save-buffers-kill-terminal)
-    ))
+;;  (let* (
+;;          ;; TODO going away soon.
+;;          (clean-exit-flag-file
+;;            (concat
+;;             (desktop-recover-fixdir
+;;              desktop-recover-tmp-dir)
+;;             desktop-recover-clean-exit-flag))
 
-;; TODO about to go away
-(defun desktop-recover-clear-clean-save-flag ()
-  "Remove the clean save flag (until the next clean save really happens)."
-  (let* (( clean-exit-flag-file
-           (concat
-            (desktop-recover-fixdir
-             desktop-recover-tmp-dir)
-            desktop-recover-clean-exit-flag))
-         )
-    (delete-file clean-exit-flag-file)
-    ))
+;;          ;; set these to override defaults
+;;          (output-buffer nil)
+;;          (error-buffer  nil)
+;;          (cmd (format "touch %s" clean-exit-flag-file))
+
+;;         )
+;;     (desktop-recover-save-with-danglers) ;; TODO double-check. right save?
+;;     ;; we do this *after* the above, because that also clears the flag
+;;     (shell-command cmd output-buffer error-buffer)
+;;     ;; TODO we're just doing a save here that *doesn't* save the danglers.
+;;     ;; thus, all of the above then all goes away.
+
+    ;; doing one last save *without* the dangling buffers
+  (desktop-recover-force-save-in-desktop-dir)
+  (save-buffers-kill-terminal)
+;;  )
+  )
+
+;; ;; TODO about to go away
+;; (defun desktop-recover-clear-clean-save-flag ()
+;;   "Remove the clean save flag (until the next clean save really happens)."
+;;   (let* (( clean-exit-flag-file
+;;            (concat
+;;             (desktop-recover-fixdir
+;;              desktop-recover-tmp-dir)
+;;             desktop-recover-clean-exit-flag))
+;;          )
+;;     (delete-file clean-exit-flag-file)
+;;     ))
 
 
 (defun desktop-recover-force-save (dirname &optional release)
@@ -364,7 +369,8 @@ getting in the way."
    )
 
 (defun desktop-recover-force-save-in-desktop-dir ()
-  "Save the desktop in directory `desktop-dirname'."
+  "Save the desktop in directory `desktop-dirname'.
+This does not by itself save dangling buffers."
   (interactive)
   (if desktop-dirname
       (desktop-recover-force-save desktop-dirname)
