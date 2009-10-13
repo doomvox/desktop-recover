@@ -130,15 +130,7 @@ circumstances.")
             (lambda ()
               (desktop-recover-save-with-danglers))))
 
-;; TODO
-;; Need a way to skip things like my ubiquitous "shell-misc" buffers.
-;; desktop.el has a skip list, right?
-;; Simplest thing for me to do: rename it "*shell-misc*"... but that
-;; breaks my old keystroke macros.
-;;
-;; Would it make sense to be able to skip all shell buffers?
-;; Ideally: provide a list of major-modes that will be skipped,
-;; so file/buffer names don't matter so much.
+;; Ideally: break-out a list of major-modes to be skipped.
 (defun desktop-recover-save-with-danglers ()
   "Desktop autosave routine that preserves buffers that have no associated files.
 Works by saving them to a standard tmp directory, then using desktop.el to save
@@ -147,21 +139,18 @@ have buffers corresponding to the old dangling buffers (though now they'll be
 associated with files in the special tmp location).
 See: `desktop-recover-dangling-buffers-doc'"
   (interactive)
-  (let* ( (DEBUG nil)
-          (preserve-buffer (current-buffer))
-          (temp-loc desktop-recover-tmp-dir)
-          (dangling-buffers (desktop-recover-list-dangling-buffers))
-          )
+  (let* ((preserve-buffer (current-buffer))
+         (temp-loc desktop-recover-tmp-dir)
+         (dangling-buffers (desktop-recover-list-dangling-buffers))
+         )
     (unless (file-exists-p temp-loc)
       (make-directory temp-loc t))
-
     ;; save each to temp location using a file name identical to the buffer name,
     (dolist (buffy dangling-buffers)
             (set-buffer buffy)
-            (let* (
-                    (  buffy-name (buffer-name  buffy) )
-                    (  file-nameo (concat temp-loc "/" buffy-name) )
-                    )
+            (let* ((buffy-name (buffer-name  buffy))
+                   (file-nameo (concat temp-loc "/" buffy-name))
+                   )
               (write-file file-nameo) ;; this *is* saving the buffer in the tmp location,
                                       ;; but something is destroying the dangling buffers
               ))
@@ -181,43 +170,29 @@ Returns a list of buffer objects."
       (desktop-recover-list-in-other-window buffname-list "*mah buffers*")
     ))
 
-;; TODO should this be refactored to use desktop-recover-list-ordinary-buffers ?
-;; note that that would change behavior: skips dired buffers (a good thing?
-;; should be settable behavior?)
 (defun desktop-recover-list-dangling-buffers ()
-  "List buffers without files or directories, skipping internal and display (*) buffers.
+  "List buffers without files or directories, skipping internal and display buffers.
 Returns a list of buffer objects."
   (interactive)
-  (let* ((DEBUG nil)
-         (preserve-buffer (current-buffer))
+  (save-excursion
+  (let* ((initial-buffer (current-buffer))
+         (ordinaries-list (desktop-recover-list-ordinary-buffers))
          (output-list)
          )
-    (and DEBUG (message "running desktop-recover-list-dangling-buffers"))
     (save-excursion
-      (dolist (buffy (buffer-list))
+      (dolist (buffy ordinaries-list)
         (set-buffer buffy) ; switch to buffer so we can check 'major-mode'
         (let* ((file-nameo (buffer-file-name buffy) )
                (buffy-name (buffer-name  buffy) )
                )
-          (cond (
-                 (and
-                  ;; looking for buffers without file names
-                  (not file-nameo)
-                  ;; Skip directories
-                  (not (string= major-mode "dired-mode")) ;; TODO any better way?
-                  ;; Skip internal buffers.
-                  (not (string= (substring buffy-name 0 1) " "))
-                  ;; Skip dynamic display buffers
-                  (not (string= (substring buffy-name 0 1) "*"))
-                  )
-                 (and DEBUG (message "buffer without associated file: %s" buffy-name))
+          (cond ((not file-nameo) ;; looking for buffers without file names
                  (push buffy output-list)
                  )
                 )))
-      (switch-to-buffer preserve-buffer)
+      (switch-to-buffer initial-buffer)
       (deactivate-mark)
-      (and DEBUG (message "finished desktop-recover-list-dangling-buffers"))
-  output-list)))
+  output-list))))
+
 
 (defun desktop-recover-list-ordinary-buffers ()
   "List buffers, skipping dired buffers, internal and display (*) buffers.
@@ -243,6 +218,11 @@ Returns a list of buffer objects.  Note that 'ordinary' buffers include
                   (not (string= (substring buffy-name 0 1) " "))
                   ;; Skip dynamic display buffers (begin with asterix)
                   (not (string= (substring buffy-name 0 1) "*"))
+                  ;; Skip shell and debugger buffers (even without leading "*")
+                  (not (or
+                        (string= major-mode "shell-mode")
+                        (string= major-mode "eshell-mode")
+                        (string= major-mode "gud-mode")))
                   )
                  (and DEBUG (message "buffer: %s" buffy-name))
                  (push buffy output-list)
@@ -570,7 +550,7 @@ conversion from string to list first."
 ;; might want to be able to toggle it off, so check the trailing marker as well
 (defun desktop-recover-do-it ()
   "Accept the current settings of the restore menu buffer.
-Runs the appropriate \"descktop-create-buffer\" calls stored
+Runs the appropriate \"desktop-create-buffer\" calls stored
 in the desktop-list data structure."
   (interactive)
   (let* (
@@ -579,7 +559,6 @@ in the desktop-list data structure."
          (dcb-code)
          (dcb-list)
          )
-    ;; (desktop-read-initialization-old) ;; TODO shot in the dark (again)
     (goto-char (point-min))
     (while ;; loop over all lines in buffer
         (progn
@@ -596,7 +575,6 @@ in the desktop-list data structure."
           (forward-line 1)
           (< (line-number-at-pos) line-count)
           ))
-
     ;; TODO it appears that before doing an eval/read of some dcb blocks,
     ;; I need to mimic the context they would've run inside of desktop.el
     (let ((desktop-first-buffer nil)
@@ -605,11 +583,9 @@ in the desktop-list data structure."
           (owner (desktop-owner))
           ;; Avoid desktop saving during evaluation of desktop buffer.
           (desktop-save nil))
-
       (dolist (dcb dcb-list)
         (eval (read dcb)))
       )
-
     ))
 
 (defun desktop-recover-mark ()
@@ -675,43 +651,42 @@ These are buffers that existed when the last desktop save was done."
 
 (defun desktop-recover-build-menu-contents (desktop-list)
   "Builds the menu text from the DESKTOP-LIST data."
-  (let (
-         (name) (path) (mode) (dcb-code)
-         (marker "*")
-         (hash-mark "#")
-         (line "")
-         (menu-contents "")
-         (line-fmt "%3s%-35s%-42s")
-         )
-         (dolist (record desktop-list)
-           ;; unpack the record
-           (setq name     (nth 0 record))
-           (setq path     (nth 1 record))
-           (setq mode     (nth 2 record))
-           (setq dcb-code (nth 3 record))
-           (cond ((desktop-recover-by-default-p record)
-                  (setq line (format
-                              line-fmt
-                              (concat " " desktop-recover-marker " ")
-                              name
-                              path
-                              )))
-                  (t
-                   (setq line (format line-fmt
-                               (concat " " desktop-recover-unmarker " ")
-                               name
-                               path
-                               ))
-                   )
-                  )
-           (put-text-property 0 1 'dcb dcb-code line)
-           ;; TODO make this part of the above line-fmt?
-           (if (desktop-recover-newer-auto-save path)
-               (set1 line (concat line " " hash-mark)))
-           (setq menu-contents
-                 (concat menu-contents line "\n"))
-           )
-         menu-contents))
+  (let ((name) (path) (mode) (dcb-code)
+        (marker "*")
+        (hash-mark "#")
+        (line "")
+        (menu-contents "")
+        (line-fmt "%3s%-35s%-42s")
+        )
+    (dolist (record desktop-list)
+      ;; unpack the record
+      (setq name     (nth 0 record))
+      (setq path     (nth 1 record))
+      (setq mode     (nth 2 record))
+      (setq dcb-code (nth 3 record))
+      (cond ((desktop-recover-by-default-p record)
+             (setq line (format
+                         line-fmt
+                         (concat " " desktop-recover-marker " ")
+                         name
+                         path
+                         )))
+            (t
+             (setq line (format line-fmt
+                                (concat " " desktop-recover-unmarker " ")
+                                name
+                                path
+                                ))
+             )
+            )
+      (put-text-property 0 1 'dcb dcb-code line)
+      ;; TODO make this part of the above line-fmt?
+      (if (desktop-recover-newer-auto-save path)
+          (set1 line (concat line " " hash-mark)))
+      (setq menu-contents
+            (concat menu-contents line "\n"))
+      )
+    menu-contents))
 
 (defun desktop-recover-clean-exit-p ()
   "Does it look like emacs exited cleanly?"
@@ -729,8 +704,7 @@ These are buffers that existed when the last desktop save was done."
 A file should not be re-loaded if was an automatically saved temporary
 buffer and emacs exited cleanly.  RECORD should be a list of
 name, path, mode and dcb-code."
-  (let* (
-         (name) (path) (mode) (dcb-code)
+  (let* ((name) (path) (mode) (dcb-code)
          (clean-exit-p (desktop-recover-clean-exit-p))
          (tmp-dir (desktop-recover-fixdir desktop-recover-tmp-dir))
          (recover-p t) ;; return value
@@ -864,6 +838,43 @@ that this is doing it may be a good idea for me to do also."
                        (length desktop-buffer-args-list))
              ""))
   )
+
+(defun desktop-recover-list-dangling-buffers-original ()
+  "List buffers without files or directories, skipping internal and display (*) buffers.
+Returns a list of buffer objects."
+  (interactive)
+  (let* ((preserve-buffer (current-buffer))
+         (output-list)
+         )
+    (save-excursion
+      (dolist (buffy (buffer-list))
+        (set-buffer buffy) ; switch to buffer so we can check 'major-mode'
+        (let* ((file-nameo (buffer-file-name buffy) )
+               (buffy-name (buffer-name  buffy) )
+               )
+          (cond (
+                 (and
+                  ;; looking for buffers without file names
+                  (not file-nameo)
+                  ;; Skip directories
+                  (not (string= major-mode "dired-mode"))
+                  ;; Skip internal buffers.
+                  (not (string= (substring buffy-name 0 1) " "))
+                  ;; Skip dynamic display buffers
+                  (not (string= (substring buffy-name 0 1) "*"))
+                  ;; Skip shell and debugger buffers (even without leading "*")
+                  (not (or
+                        (string= major-mode "shell-mode")
+                        (string= major-mode "eshell-mode")
+                        (string= major-mode "gud-mode")))
+                  )
+                 (push buffy output-list)
+                 )
+                )))
+      (switch-to-buffer preserve-buffer)
+      (deactivate-mark)
+  output-list)))
+
 
 
 ;;; desktop-recover.el ends here
