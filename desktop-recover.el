@@ -195,25 +195,22 @@ Returns a list of buffer objects."
 
 
 (defun desktop-recover-list-ordinary-buffers ()
-  "List buffers, skipping dired buffers, internal and display (*) buffers.
+  "List buffers, skips: dired, shell, debugger, internal and display buffers.
 Returns a list of buffer objects.  Note that 'ordinary' buffers include
 'dangling' buffers without associated files."
   (interactive)
-  (let* ( (DEBUG nil)
-          (preserve-buffer (current-buffer))
-          (output-list)
-        )
-    (and DEBUG (message "running desktop-recover-list-ordinary-buffers"))
+  (let* ((initial-buffer (current-buffer))
+         (output-list)
+         )
     (save-excursion
       (dolist (buffy (buffer-list))
         (set-buffer buffy) ; switch to buffer so we can check 'major-mode'
-        (let* ( (  file-nameo (buffer-file-name buffy) )
-                (  buffy-name (buffer-name  buffy) )
-                )
-          (cond (
-                 (and
+        (let* ((file-nameo (buffer-file-name buffy))
+               (buffy-name (buffer-name buffy))
+               )
+          (cond ((and
                   ;; Skip directories
-                  (not (string= major-mode "dired-mode")) ;; TODO any better way?
+                  (not (string= major-mode "dired-mode"))
                   ;; Skip internal buffers (begin with space)
                   (not (string= (substring buffy-name 0 1) " "))
                   ;; Skip dynamic display buffers (begin with asterix)
@@ -224,15 +221,12 @@ Returns a list of buffer objects.  Note that 'ordinary' buffers include
                         (string= major-mode "eshell-mode")
                         (string= major-mode "gud-mode")))
                   )
-                 (and DEBUG (message "buffer: %s" buffy-name))
                  (push buffy output-list)
                  )
                 )))
-      (switch-to-buffer preserve-buffer)
+      (switch-to-buffer initial-buffer)
       (deactivate-mark)
-      (and DEBUG (message "finished desktop-recover-list-ordinary-buffers"))
-  output-list)))
-
+      output-list)))
 
 (defun desktop-recover-list-ordinary-buffer-names ()
   "List names of ordinary buffers, skipping dired, internal and display (*) buffers.
@@ -465,7 +459,7 @@ desktop-create-buffer call.  See \\[desktop-recover-desktop-list-doc]."
 Uses the standard name \".emacs.desktop\" (determined from
 `desktop-base-file-name'), located either in the given DIRNAME or
 in the default `desktop-recover-location'.  It does not check for
-the existance of the file."
+the existance of the file.  Sets `desktop-dirname' as a side-effect."
     (setq desktop-dirname
           (file-name-as-directory
            (expand-file-name
@@ -548,6 +542,7 @@ conversion from string to list first."
 ;;       (recover-this-file))
 ;; Q: is there any reason not to *always* do this recover step?
 ;; might want to be able to toggle it off, so check the trailing marker as well
+;; TODO cleanup the tmp directory, specifically the clean save flag file?
 (defun desktop-recover-do-it ()
   "Accept the current settings of the restore menu buffer.
 Runs the appropriate \"desktop-create-buffer\" calls stored
@@ -576,7 +571,7 @@ in the desktop-list data structure."
           (< (line-number-at-pos) line-count)
           ))
     ;; TODO it appears that before doing an eval/read of some dcb blocks,
-    ;; I need to mimic the context they would've run inside of desktop.el
+    ;; I need to mimic some of the context they would've had inside of desktop.el
     (let ((desktop-first-buffer nil)
           (desktop-buffer-ok-count 0)
           (desktop-buffer-fail-count 0)
@@ -586,6 +581,8 @@ in the desktop-list data structure."
       (dolist (dcb dcb-list)
         (eval (read dcb)))
       )
+    ;; after doing a recovery, must clean-up so that this can be used next time
+    (desktop-recover-reset-clean-exit-flag)
     ))
 
 (defun desktop-recover-mark ()
@@ -688,6 +685,21 @@ These are buffers that existed when the last desktop save was done."
       )
     menu-contents))
 
+
+(defun desktop-recover-reset-clean-exit-flag ()
+  "Erase the file used to flag that emacs exited cleanly."
+  (let* (
+         (tmp-dir (desktop-recover-fixdir
+                   desktop-recover-tmp-dir))
+         (clean-exit-flag-file
+          (concat tmp-dir desktop-recover-clean-exit-flag))
+         )
+         (if (file-exists-p clean-exit-flag-file)
+             (delete-file clean-exit-flag-file)
+             )
+    ))
+
+
 (defun desktop-recover-clean-exit-p ()
   "Does it look like emacs exited cleanly?"
   (let* (
@@ -705,7 +717,6 @@ A file should not be re-loaded if was an automatically saved temporary
 buffer and emacs exited cleanly.  RECORD should be a list of
 name, path, mode and dcb-code."
   (let* ((name) (path) (mode) (dcb-code)
-         (clean-exit-p (desktop-recover-clean-exit-p))
          (tmp-dir (desktop-recover-fixdir desktop-recover-tmp-dir))
          (recover-p t) ;; return value
          )
@@ -716,10 +727,8 @@ name, path, mode and dcb-code."
     (setq dcb-code (nth 3 record))
     (message "the temp directory: %s" tmp-dir) ;; DEBUG
     (cond ((and
-            (string=
-             (desktop-recover-fixdir path)
-             tmp-dir)
-            (clean-exit-p))
+            (string= (desktop-recover-fixdir path) tmp-dir)
+            (desktop-recover-clean-exit-p))
            (setq recover-p nil))
           )
     recover-p))
