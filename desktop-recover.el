@@ -121,14 +121,15 @@ circumstances.")
 ;;======================
 ;; saving desktop files
 
-;; TODO Add a way to turn this off?  Any safety features to add?
-;; e.g. don't do "recovery" if saves are enabled... (or deactivate
-;; saves during a recovery?  better.)
+;; TODO Add a way to turn this off?   Make it a toggle using remove-hook.
+;; TODO how to deactivate saves during a recovery?
 (defun desktop-recover-do-saves-automatically ()
   "Makes the desktop saved automatically using the auto-save-hook."
   (add-hook 'auto-save-hook
             (lambda ()
               (desktop-recover-save-with-danglers))))
+
+
 
 ;; Ideally: break-out a list of major-modes to be skipped.
 (defun desktop-recover-save-with-danglers ()
@@ -164,10 +165,10 @@ See: `desktop-recover-dangling-buffers-doc'"
   "List buffers without files or directories, skipping internal and display (*) buffers.
 Returns a list of buffer objects."
   (interactive)
-  (let* ( (dangling-buffers (desktop-recover-list-dangling-buffers))
-          (buffname-list  (mapcar 'buffer-name dangling-buffers) )
-                 )
-      (desktop-recover-list-in-other-window buffname-list "*mah buffers*")
+  (let* ((dangling-buffers (desktop-recover-list-dangling-buffers))
+         (buffname-list  (mapcar 'buffer-name dangling-buffers))
+         )
+    (desktop-recover-list-in-other-window buffname-list "*mah buffers*")
     ))
 
 (defun desktop-recover-list-dangling-buffers ()
@@ -192,7 +193,6 @@ Returns a list of buffer objects."
       (switch-to-buffer initial-buffer)
       (deactivate-mark)
   output-list))))
-
 
 (defun desktop-recover-list-ordinary-buffers ()
   "List buffers, skips: dired, shell, debugger, internal and display buffers.
@@ -516,11 +516,14 @@ conversion from string to list first."
 ;; The return key is the "do-it" that accepts the displayed settings,
 ;; and the "m" and "u" keys control whether the current line is set
 
-(defvar desktop-recover-unmarker " "
-  "Symbol used for an unmarked buffer that will not be reloaded by default.")
-
 (defvar desktop-recover-marker "*"
-  "Symbol used for a marked buffer that will be reloaded by default.")
+  "Symbol used to show a buffer will be reloaded \(typically \"*\"\).")
+
+(defvar desktop-recover-autosave-marker "#"
+  "Symbol used to show that a more recent auto-save file exists \(typically \"#\"\).")
+
+(defvar desktop-recover-unmarker " "
+  "Character used to erase either of the above markers (typically a space).")
 
 (define-derived-mode desktop-recover-mode
   text-mode "desktop-recover"
@@ -548,8 +551,7 @@ conversion from string to list first."
 Runs the appropriate \"desktop-create-buffer\" calls stored
 in the desktop-list data structure."
   (interactive)
-  (let* (
-         (marker-pattern "^[ \t]*\\*") ;; line begins with asterix
+  (let* ((marker-pattern "^[ \t]*\\*") ;; line begins with asterix
          (line-count (count-lines (point-min) (point-max)))
          (dcb-code)
          (dcb-list)
@@ -570,8 +572,9 @@ in the desktop-list data structure."
           (forward-line 1)
           (< (line-number-at-pos) line-count)
           ))
-    ;; TODO it appears that before doing an eval/read of some dcb blocks,
-    ;; I need to mimic some of the context they would've had inside of desktop.el
+    ;; When doing the eval/read of dcb blocks, need to mimic some of the context
+    ;; they would've had inside of desktop.el (even though we don't care about
+    ;; these features).
     (let ((desktop-first-buffer nil)
           (desktop-buffer-ok-count 0)
           (desktop-buffer-fail-count 0)
@@ -648,12 +651,16 @@ These are buffers that existed when the last desktop save was done."
 
 (defun desktop-recover-build-menu-contents (desktop-list)
   "Builds the menu text from the DESKTOP-LIST data."
-  (let ((name) (path) (mode) (dcb-code)
-        (marker "*")
-        (hash-mark "#")
+  (let* ((name) (path) (mode) (dcb-code)
+        (marker desktop-recover-marker)     ;; "*"
+        (unmarker desktop-recover-unmarker) ;; " "
+        (auto-save-mark desktop-recover-autosave-marker) ;; "#"
         (line "")
         (menu-contents "")
-        (line-fmt "%3s%-35s%-42s")
+        ;; (line-fmt " %1s %-33s%-42s %1s")
+        (line-fmt (desktop-recover-menu-format desktop-list))
+        (marker-field)
+        (auto-save-field)
         )
     (dolist (record desktop-list)
       ;; unpack the record
@@ -661,29 +668,68 @@ These are buffers that existed when the last desktop save was done."
       (setq path     (nth 1 record))
       (setq mode     (nth 2 record))
       (setq dcb-code (nth 3 record))
-      (cond ((desktop-recover-by-default-p record)
-             (setq line (format
-                         line-fmt
-                         (concat " " desktop-recover-marker " ")
-                         name
-                         path
-                         )))
-            (t
-             (setq line (format line-fmt
-                                (concat " " desktop-recover-unmarker " ")
-                                name
-                                path
-                                ))
-             )
-            )
+      (setq marker-field
+            (cond ((desktop-recover-by-default-p record)
+                   desktop-recover-marker)
+                  (t
+                   desktop-recover-unmarker)
+                  ))
+      (setq auto-save-field
+            (cond ((desktop-recover-newer-auto-save path)
+                   auto-save-mark)
+                  (t
+                   desktop-recover-unmarker)
+                  ))
+      (setq line (format
+                  line-fmt
+                  marker-field
+                  name
+                  path
+                  auto-save-field
+                  ))
+      ;; saving the dcb code block out-of-sight, attached to first character
       (put-text-property 0 1 'dcb dcb-code line)
-      ;; TODO make this part of the above line-fmt?
-      (if (desktop-recover-newer-auto-save path)
-          (set1 line (concat line " " hash-mark)))
+      ;;
+      ;; for convenience, preserving the visible fields also
+      (put-text-property 0 1 'name name line)
+      (put-text-property 0 1 'path path line)
+      (put-text-property 0 1 'mode mode line)
+      (put-text-property 0 1 'marker marker-field line)
+      (put-text-property 0 1 'auto-save-mark auto-save-mark line)
       (setq menu-contents
             (concat menu-contents line "\n"))
       )
     menu-contents))
+
+
+;; four fields: marker name path auto-save-marker
+(defun desktop-recover-menu-format (desktop-list)
+  "Choose the menu format, balancing between lengths of name and path."
+  (let* ((name) (path) (width-name) (width-path)
+         (total-width 80) ;; TODO break-out as var
+         (max-name 0)
+         ;; (max-path 0)    ;; Not making any use of max-path at present
+         (line-fmt "")
+         )
+    (dolist (record desktop-list)
+      (setq name     (nth 0 record))
+      (setq path     (nth 1 record))
+      (if (> (length name) max-name)
+          (setq max-name (length name)))
+      ;; (if (> (length path) max-path)
+      ;; (setq max-path (length path)))
+        )
+    ;; Goal: (line-fmt " %1s %-33s%-42s %1s")
+    (setq width-name (+ max-name 2))
+    (setq width-path (- total-width 5 width-name))
+    (setq line-fmt
+          (concat
+           " %1s %-"
+           (number-to-string width-name)
+           "s%-"
+           (number-to-string width-path)
+           "s %1s"))
+    line-fmt))
 
 
 (defun desktop-recover-reset-clean-exit-flag ()
@@ -711,6 +757,9 @@ These are buffers that existed when the last desktop save was done."
          )
     retval))
 
+;; TODO this has access to the mode -- why not use it?
+;; could distinguish between dired & shell buffers at this stage?
+;; might require doing dynamic buffer filtering later than I am
 (defun desktop-recover-by-default-p (record)
   "Examine RECORD to determine if this buffer should be reloaded by default.
 A file should not be re-loaded if was an automatically saved temporary
