@@ -45,18 +45,51 @@
 ;; poor man's pod/lazy man's info:
 ;;   dummy variables with documentation attached
 
-(defvar desktop-recover-desktop-list-doc ""
-  "Many functions in this package work with a data-structure
-typically called the \"desktop-list\". This describes the buffers
-recorded in the .emacs-desktop file, which are candidates to be
-re-loaded when desktop-recover-interactive is run.  The
-desktop-list is a list of lists, with one row per buffer, where
-each row is a list of (in this order): name, path, mode, and the
-desktop-create-buffer call.  The \"name\" is the name sans path,
-the \"path\" is the full-name, including path, the mode is the
-name of the associated emacs mode (e.g. \"text-mode\"), and the
-\"desktop-create-buffer call\" is the code (in string form) that
-will need to be run to restore the buffer.")
+;; TODO add a directory of all of the other *-doc
+(defvar desktop-revover-toc-doc ""
+  "")
+
+(defvar desktop-revover-desktop-doc ""
+  "In this context the \"desktop\" is the emacs desktop, i.e. the
+state of all the current buffers that are open at a given moment,
+except for the dynamic buffers \(usually named with a leading
+asterix\) and a few other odds and ends.  This is the terminology
+used by the package \"desktop.el\" \(already standard with GNU
+emacs\).  This package, \"desktop-recover.el\" works with
+\"desktop.el\", using it for crash recovery purposes \(the sort
+of thing people working over flaky network connections have to
+deal with\).")  ;; it's also likely that this can
+;; be used with project-root to implement project-specific
+;; desktops.
+
+(defvar desktop-recover-philosophy-doc ""
+  "The general philosophy behind desktop-recover.el.
+This code, desktop-recover.el, uses desktop.el internally to save
+the state of the emacs \"desktop\", but we very carefully
+over-ride or ignore a number of small features of desktop.el.  By
+itself, desktop.el is very cautious about keeping desktop files
+locked, and it will stop to warn the user if it looks like two
+different emacs instances are trying to use the same file.
+Further, it dynamically searches likely locations to find a
+desktop file, and makes it a little difficult to over-ride that
+behavior (e.g. just setting the `desktop-dirname' variable
+doesn't always work).  This package, desktop-recover.el takes
+a somewhat different approach: our presumption is that there is
+nothing critical about saving desktop state; it's just a
+convenience feature, and so there's nothing important enough
+about it to bother the user for confirmation. The desktop-recover
+save primitives ignore desktop.el locking system:
+  \\[desktop-recover-force-save]
+  \\[desktop-recover-force-save-in-desktop-dir]
+")
+;; TODO further, I think desktop-recover.el is supposed to
+;; use a much simpler directory search, i.e. it has one
+;; default, you set a var to something else if you want something
+;; else: `desktop-recover-location'
+
+;; desktop.el sets the desktop-dirname to nil to supress saves,
+;; a little less indirectly, the desktop-recover.el save primitives
+;; become no-ops if this variable has been set: desktop-recover-suppress-save
 
 (defvar desktop-recover-dangling-buffers-doc ""
   "We use \"dangling buffers\" to mean buffers without associated files.
@@ -69,6 +102,19 @@ Along with the automated desktop save feature, we will make save
 these dangling buffers to temporary files, making them a little
 less ephemeral, though not as permanent as ordinary files.
 A clean exit from emacs should erase them.")
+
+(defvar desktop-recover-desktop-list-doc ""
+  "Many functions in this package work with a data-structure
+typically called the \"desktop-list\". This describes the buffers
+recorded in the .emacs-desktop file, which are candidates to be
+re-loaded when desktop-recover-interactive is run.  The
+desktop-list is a list of lists, with one row per buffer, where
+each row is a list of (in this order): name, path, mode, and the
+desktop-create-buffer call.  The \"name\" is the name sans path,
+the \"path\" is the full-name, including path, the mode is the
+name of the associated emacs mode (e.g. \"text-mode\"), and the
+\"desktop-create-buffer call\" is the code (in string form) that
+will need to be run to restore the buffer.")
 
 ;;;;##########################################################################
 ;;;;  User Options, Variables
@@ -92,19 +138,21 @@ the default-directory or the ROOT setting."
             (expand-file-name dir root))))))
     return))
 
-(defcustom desktop-recover-tmp-dir
-  (substitute-in-file-name
-   "$HOME/.emacs.d/desktop-recover-tmp")
-  "Location where dangling buffers that have no associated files are saved.")
-
-(defcustom desktop-recover-location "$HOME/.emacs.d"
+(defcustom desktop-recover-location "$HOME/.emacs.d/"
   "The default location from which we save and restore desktop files.
-Note: desktop.el has a desktop-dirname location, but that can not be
+Note: desktop.el has a `desktop-dirname' variable, but that can not be
 used reliably as a user setting, because the code changes it under some
 circumstances.")
 (put 'desktop-recover-location 'risky-local-variable t)
 (setq desktop-recover-location
       (desktop-recover-fixdir desktop-recover-location))
+
+(defcustom desktop-recover-tmp-dir
+  (concat desktop-recover-location "desktop-recover-tmp")
+  "Location where dangling buffers that have no associated files are saved.")
+(put 'desktop-recover-tmp-dir 'risky-local-variable t)
+(setq desktop-recover-tmp-dir
+      (desktop-recover-fixdir desktop-recover-tmp-dir))
 
 (defvar desktop-recover-buffer-name "*Desktop Buffer Restore Menu*"
   "Buffer name for the desktop restore menu.")
@@ -112,26 +160,29 @@ circumstances.")
 (defvar desktop-recover-clean-exit-flag "desktop_recover_clean_exit.flag"
   "The existance of a file of this name signals that we did a clean exit.")
 
+(defvar desktop-recover-suppress-save nil
+  "Set this to t to over-ride any attempts at doing desktop saves.
+Note: this flag is respected by desktop-recover.el code, not desktop.el.")
 
 ;; Bound locally in `desktop-read' in desktop.el
 (defvar desktop-buffer-ok-count)
 (defvar desktop-buffer-fail-count)
 
-
 ;;======================
 ;; saving desktop files
 
-;; TODO Add a way to turn this off?   Make it a toggle using remove-hook.
-;; TODO how to deactivate saves during a recovery?
+;; TODO Why not make this a toggle?  Use remove-hook.
 (defun desktop-recover-do-saves-automatically ()
-  "Makes the desktop saved automatically using the auto-save-hook."
+  "Makes the desktop saved automatically using the auto-save-hook.
+It's recommended that you delay doing this until after you've restored
+the desktop with \\[desktop-recover-interactive]  \(though that
+routine also sets `desktop-recover-suppress-save' as an additional
+safety feature\)."
   (add-hook 'auto-save-hook
             (lambda ()
               (desktop-recover-save-with-danglers))))
 
-
-
-;; Ideally: break-out a list of major-modes to be skipped.
+;; TODO ideally: break-out a list of major-modes to be skipped.
 (defun desktop-recover-save-with-danglers ()
   "Desktop autosave routine that preserves buffers that have no associated files.
 Works by saving them to a standard tmp directory, then using desktop.el to save
@@ -161,16 +212,7 @@ See: `desktop-recover-dangling-buffers-doc'"
     (desktop-recover-force-save-in-desktop-dir)
   ))
 
-(defun desktop-recover-display-dangling-buffers ()
-  "List buffers without files or directories, skipping internal and display (*) buffers.
-Returns a list of buffer objects."
-  (interactive)
-  (let* ((dangling-buffers (desktop-recover-list-dangling-buffers))
-         (buffname-list  (mapcar 'buffer-name dangling-buffers))
-         )
-    (desktop-recover-list-in-other-window buffname-list "*mah buffers*")
-    ))
-
+;; Note: used by desktop-recover-save-with-danglers
 (defun desktop-recover-list-dangling-buffers ()
   "List buffers without files or directories, skipping internal and display buffers.
 Returns a list of buffer objects."
@@ -228,73 +270,6 @@ Returns a list of buffer objects.  Note that 'ordinary' buffers include
       (deactivate-mark)
       output-list)))
 
-(defun desktop-recover-list-ordinary-buffer-names ()
-  "List names of ordinary buffers, skipping dired, internal and display (*) buffers.
-Returns a list of buffer names.  Note that 'ordinary' buffers include
-'dangling' buffers without associated files."
-  (interactive)
-  (let* ( (ordinary-buffers (desktop-recover-list-ordinary-buffers))
-          (buffname-list  (mapcar 'buffer-name ordinary-buffers) )
-                 )
-    buffname-list))
-
-(defun desktop-recover-buffer-safe-to-overwrite-p (buffer-name)
-  "Verify that a buffer is safe to be over-written.
-Currently this is just a check to make sure the given name
-follows the convention for dynamic display buffers: it must
-begin with a leading asterix."
-  (string= (substring buffer-name 0 1) "*"))
-
-;; TODO -- there's a need for window handling utilities and usage standards
-;; TODO -- Make buffer name optional? (have a generated default)
-;; TODO -- only works with a list of strings.
-;;         is there pp code that would work with, say, a list of objects like buffers?
-(defun desktop-recover-list-in-other-window (list buffer-name)
-  "Displays LIST of strings in BUFFER-NAME in a second window.
-Closes all other windows except for the current window and the newly created one."
-  (unless
-      (desktop-recover-buffer-safe-to-overwrite-p buffer-name)
-    (error (format "%s does not look safe to over-write." buffer-name)))
-  (delete-other-windows)
-  (split-window-vertically)
-  (other-window 1)
-  (switch-to-buffer buffer-name)
-  (mark-whole-buffer)
-  (delete-region (mark) (point))
-  (insert (mapconcat 'identity list "\n"))   ;;; TODO how to insert a list?
-  (deactivate-mark))
-
-(defun desktop-recover-print-ordinary-buffer-names ()
-  "Print ordinary buffer names (non-directory, non-asterix, non-internal)."
-  (interactive)
-  (let* ( (buff_list   (desktop-recover-list-ordinary-buffer-names) )
-          (buff_string (mapconcat 'identity buff_list "\n")) )
-    (print buff_string)
-    ))
-
-(defun desktop-recover-insert-ordinary-buffer-names ()
-  "Insert ordinary buffer names (non-directory, non-asterix, non-internal).
-Inserts names into the current buffer, at point, one on each line."
-  (interactive)
-  (let* ( (buff_list   (desktop-recover-list-ordinary-buffer-names) )
-;          (buff_string (mapconcat 'identity buff_list "\n"))
-          )
-    (dolist (item buff_list)
-            (insert item)
-            (insert "\n")
-    )))
-
-(defun desktop-recover-clear-clean-save-flag ()
-  "Remove the clean save flag (until the next clean save really happens)."
-  (let* (( clean-exit-flag-file
-           (concat
-            (desktop-recover-fixdir
-             desktop-recover-tmp-dir)
-            desktop-recover-clean-exit-flag))
-         )
-    (delete-file clean-exit-flag-file)
-    ))
-
 (defun desktop-recover-save-buffers-kill-terminal ()
   "Wrapper around save-buffers-kill-terminal to flag clean exits.
 Actually, it flags the fact that we *tried* to exit cleanly, since
@@ -317,37 +292,91 @@ emacs died."
     (save-buffers-kill-terminal)
     ))
 
-;; TODO this is ill-concieved... might need code that
-;; forcibly deletes danglers even if they've been saved before
-;; , so that they won't be saved like regular files here.
+;; TODO alternately, we could do this with the kill-emacs-hook.
+;; TODO the idea in the docs here is ill-concieved... maybe need code
+;; that forcibly deletes danglers, so that if they've been saved before
+;; so they won't be saved again like regular files?
 (defun desktop-recover-save-buffers-kill-terminal-exp ()
   "For doing a \"clean\" exit, without need to save danglers.
 Essentially a wrapper around save-buffers-kill-terminal, intended
 to be bound to the usual keybinding for exiting emacs."
-;; TODO alternately, we could do this with the kill-emacs-hook.
+  ;; (desktop-recover-break-file-association-of-danglers) ;; TODO write this
   ;; doing one last save *without* the dangling buffers
   (desktop-recover-force-save-in-desktop-dir)
   (save-buffers-kill-terminal)
   )
 
+(defun desktop-recover-break-file-association-of-danglers ()
+  "Remove association between buffers and files in `desktop-recover-tmp-dir'."
+  ;; TODO how exactly do you do this?
+  ;; first thought: save contents of each dangler to strings,
+  ;; delete files and buffers, recreate each buffer from string
+  ;; (If that dies in the middle, the user will be very confused.
+  ;; is this worth doing?)
+  ;; TODO consider alternate approach:
+  ;; custom desktop save code that removes danglers from the dcb list,
+  ;; *mmuuuuch* neater.
+)
+
+
+;; --------
+;; desktop-recover.el save primitives (all other "saves" here use these internally)
+
+;; TODO SOON why don't these primitives explicitly use the var:
+;;     desktop-recover-location
+;; This should be the default, even if desktop-dirname is set also (maybe for internal reasons)
+
 (defun desktop-recover-force-save (dirname &optional release)
    "Force save of desktop by wiping out any existing file first.
 This ensures you will not have any question about modtimes
 getting in the way."
-   (message "desktop-force-save called")
-   (setq desktop-dirname (file-name-as-directory (expand-file-name dirname)))
-   (desktop-remove)
-   (desktop-save dirname release)
-   )
+  (cond ((not desktop-recover-suppress-save)
+         (setq desktop-dirname (file-name-as-directory (expand-file-name dirname)))
+         (desktop-remove)
+         (desktop-save dirname release)
+         )
+        (t
+         (message "Desktop save skipped, because desktop-recover-suppress-save is set"))
+         ))
 
 (defun desktop-recover-force-save-in-desktop-dir ()
   "Save the desktop in directory `desktop-dirname'.
 This does not by itself save dangling buffers."
   (interactive)
-  (if desktop-dirname
-      (desktop-recover-force-save desktop-dirname)
-    (call-interactively 'desktop-save))
-  (message "Desktop saved in %s" (abbreviate-file-name desktop-dirname)))
+  (cond ((not desktop-recover-suppress-save)
+         (if desktop-dirname
+             (desktop-recover-force-save desktop-dirname)
+           (call-interactively 'desktop-save))
+         (message "Desktop saved in %s" (abbreviate-file-name desktop-dirname)))
+        (t
+         (message "Desktop save skipped, because desktop-recover-suppress-save is set"))
+        ))
+
+
+;;--------
+;; window management utilities
+
+(defun desktop-recover-buffer-safe-to-overwrite-p (buffer-name)
+  "Verify that a buffer is safe to be over-written.
+Currently this is just a check to make sure the given name
+follows the convention for dynamic display buffers: it must
+begin with a leading asterix."
+  (string= (substring buffer-name 0 1) "*"))
+
+(defun desktop-recover-list-in-other-window (list buffer-name)
+  "Displays LIST of strings in BUFFER-NAME in a second window.
+Closes all other windows except for the current window and the newly created one."
+  (unless
+      (desktop-recover-buffer-safe-to-overwrite-p buffer-name)
+    (error (format "%s does not look safe to over-write." buffer-name)))
+  (delete-other-windows)
+  (split-window-vertically)
+  (other-window 1)
+  (switch-to-buffer buffer-name)
+  (mark-whole-buffer)
+  (delete-region (mark) (point))
+  (insert (mapconcat 'identity list "\n"))
+  (deactivate-mark))
 
 ;;======================
 ;; read desktop files
@@ -405,7 +434,7 @@ them to use for user confirmation.  Returns the desktop-list, a
 list of lists, with one row per buffer, where each row is a
 list (in this order) of: name, path, mode, and the
 desktop-create-buffer call.  See \\[desktop-recover-desktop-list-doc]."
-  (interactive) ;; DEBUG only
+;;  (interactive) ;; DEBUG only
   (let* ((dcb-string "(desktop-create-buffer")
          (dcb-pattern (format "^[ \t]*?%s[ \t]" dcb-string))
          (dcb-list)
@@ -539,22 +568,33 @@ conversion from string to list first."
 (define-key desktop-recover-mode-map "p"    'previous-line)
 (define-key desktop-recover-mode-map "*"    'desktop-recover-mark-move-down)
 
-;; TODO SOON need a more complicated routine that doesn't just run the dcb
-;; but also gets the path, checks for a newer autosave
-;;   (if (desktop-recover-newer-auto-save path)
-;;       (recover-this-file))
-;; Q: is there any reason not to *always* do this recover step?
-;; might want to be able to toggle it off, so check the trailing marker as well
-;; TODO cleanup the tmp directory, specifically the clean save flag file?
 (defun desktop-recover-do-it ()
   "Accept the current settings of the restore menu buffer.
 Runs the appropriate \"desktop-create-buffer\" calls stored
-in the desktop-list data structure."
+in the desktop-list data structure.  Follows up with a
+with auto-save file recovery, if that's indicated."
   (interactive)
-  (let* ((marker-pattern "^[ \t]*\\*") ;; line begins with asterix
+  (let* (;; Avoid desktop saving during evaluation of desktop buffer.
+         (desktop-recover-suppress-save t)
+         (marker-pattern
+          (concat "^[ \t]"
+                  desktop-recover-marker
+                  "\\*")) ;; line begins with asterix
+         (auto-save-pattern desktop-recover-autosave-marker) ;; hash mark found
          (line-count (count-lines (point-min) (point-max)))
          (dcb-code)
-         (dcb-list)
+         (auto-save-field)
+         ;; saving the file the cursor is pointing at
+         (current-name (get-char-property (point) 'name))
+         (current-path (get-char-property (point) 'path))
+         ;;
+         ;; When doing the eval/read of dcb blocks, need to mimic
+         ;; some of the context they would've had inside of
+         ;; desktop.el (even though we don't care about these features).
+         (desktop-first-buffer nil)
+         (desktop-buffer-ok-count 0)
+         (desktop-buffer-fail-count 0)
+         (owner (desktop-owner))
          )
     (goto-char (point-min))
     (while ;; loop over all lines in buffer
@@ -566,24 +606,16 @@ in the desktop-list data structure."
                 (progn
                   (setq dcb-code
                         (get-char-property (point) 'dcb))
-                  ;; Save up the dcb-code sexps in a list, to execute later
-                  (setq dcb-list (cons (eval dcb-code) dcb-list))
-                  )))
-          (forward-line 1)
-          (< (line-number-at-pos) line-count)
-          ))
-    ;; When doing the eval/read of dcb blocks, need to mimic some of the context
-    ;; they would've had inside of desktop.el (even though we don't care about
-    ;; these features).
-    (let ((desktop-first-buffer nil)
-          (desktop-buffer-ok-count 0)
-          (desktop-buffer-fail-count 0)
-          (owner (desktop-owner))
-          ;; Avoid desktop saving during evaluation of desktop buffer.
-          (desktop-save nil))
-      (dolist (dcb dcb-list)
-        (eval (read dcb)))
-      )
+                  ;; do it to it
+                  (eval (read (eval dcb-code))) ;; TODO why the first eval?
+                  (setq auto-save-field
+                        (get-char-property (point) 'auto-save-mark))
+                  (if (string-match auto-save-pattern auto-save-field)
+                      (recover-this-file))
+                  ))
+            )))
+    (forward-line 1)
+    (< (line-number-at-pos) line-count)
     ;; after doing a recovery, must clean-up so that this can be used next time
     (desktop-recover-reset-clean-exit-flag)
     ))
@@ -635,15 +667,14 @@ in the desktop-list data structure."
 (defun desktop-recover-show-menu (desktop-list)
   "Displays info about buffers that are candidates to be restored.
 These are buffers that existed when the last desktop save was done."
-;; TODO If there's a reason to allow concurrent usage? Will need
+;; TODO Is there a reason to allow concurrent usage? Will need
 ;; multiple unique buffer names rather than just desktop-recover-buffer-name
   (interactive)
   (let* ((menu-contents))
     (setq menu-contents (desktop-recover-build-menu-contents desktop-list))
     (switch-to-buffer desktop-recover-buffer-name)
     (setq buffer-read-only nil)
-    (mark-whole-buffer)               ;; TODO find more elispy way?
-    (delete-region (mark) (point))
+    (delete-region (point-min) (point-max))
     (insert menu-contents)
     (desktop-recover-mode)
     (setq buffer-read-only 't)
@@ -697,12 +728,12 @@ These are buffers that existed when the last desktop save was done."
       (put-text-property 0 1 'marker marker-field line)
       (put-text-property 0 1 'auto-save-mark auto-save-mark line)
       (setq menu-contents
-            (concat menu-contents line "\n"))
-      )
+            (concat menu-contents line "\n")
+      ))
     menu-contents))
 
 
-;; four fields: marker name path auto-save-marker
+;; four fields: marker  name  path  auto-save-marker
 (defun desktop-recover-menu-format (desktop-list)
   "Choose the menu format, balancing between lengths of name and path."
   (let* ((name) (path) (width-name) (width-path)
@@ -730,7 +761,6 @@ These are buffers that existed when the last desktop save was done."
            (number-to-string width-path)
            "s %1s"))
     line-fmt))
-
 
 (defun desktop-recover-reset-clean-exit-flag ()
   "Erase the file used to flag that emacs exited cleanly."
@@ -774,7 +804,7 @@ name, path, mode and dcb-code."
     (setq path     (nth 1 record))
     (setq mode     (nth 2 record))
     (setq dcb-code (nth 3 record))
-    (message "the temp directory: %s" tmp-dir) ;; DEBUG
+;;    (message "the temp directory: %s" tmp-dir) ;; DEBUG
     (cond ((and
             (string= (desktop-recover-fixdir path) tmp-dir)
             (desktop-recover-clean-exit-p))
@@ -788,7 +818,7 @@ name, path, mode and dcb-code."
          (name (file-name-nondirectory path)) ;; could just pass this in too
          (a-s-name (format "#%s#" name))
          )
-    ;; if a-s-path does not exist, this is nil
+    ;; if a-s-name does not exist, this is nil
     (file-newer-than-file-p a-s-name path)
     ))
 
@@ -853,10 +883,10 @@ Using it may cause conflicts.  Use it anyway? " owner)))))
       (message "No desktop file.")
       nil)))
 
-;; TODO not yet in use.  (make sure you understand it, eh?)
+;; TODO not in use
 ;; I don't see any need for these features at all, actually...
-;; the buffer order juggling is mildly inane (and useless for my purpose)
-;; and the detailed report of success or failure is pretty useless...
+;; the buffer order juggling is not very useful for my purposes
+;; And the detailed report of success or failure seems totally useless...
 ;; if the file you wanted didn't get opened, you'll just go open it.
 (defun desktop-read-tail (&optional dirname)
   "The code that the desktop-read function executes after loading the desktop file.
@@ -932,6 +962,51 @@ Returns a list of buffer objects."
       (switch-to-buffer preserve-buffer)
       (deactivate-mark)
   output-list)))
+
+;; ---------
+;; boneyard of desktop-save routines
+;; these are functional, but not in use (they were largely for debug purposes)
+
+(defun desktop-recover-display-dangling-buffers ()
+  "List buffers without files or directories, skipping internal and display (*) buffers.
+Returns a list of buffer objects."
+  (interactive)
+  (let* ((dangling-buffers (desktop-recover-list-dangling-buffers))
+         (buffname-list  (mapcar 'buffer-name dangling-buffers))
+         )
+    (desktop-recover-list-in-other-window buffname-list "*mah buffers*")
+    ))
+
+(defun desktop-recover-list-ordinary-buffer-names ()
+  "List names of ordinary buffers, skipping dired, internal and display (*) buffers.
+Returns a list of buffer names.  Note that 'ordinary' buffers include
+'dangling' buffers without associated files."
+  (interactive)
+  (let* ( (ordinary-buffers (desktop-recover-list-ordinary-buffers))
+          (buffname-list  (mapcar 'buffer-name ordinary-buffers) )
+                 )
+    buffname-list))
+
+(defun desktop-recover-print-ordinary-buffer-names ()
+  "Print ordinary buffer names (non-directory, non-asterix, non-internal)."
+  (interactive)
+  (let* ( (buff_list   (desktop-recover-list-ordinary-buffer-names) )
+          (buff_string (mapconcat 'identity buff_list "\n")) )
+    (print buff_string)
+    ))
+
+(defun desktop-recover-insert-ordinary-buffer-names ()
+  "Insert ordinary buffer names (non-directory, non-asterix, non-internal).
+Inserts names into the current buffer, at point, one on each line."
+  (interactive)
+  (let* ( (buff_list   (desktop-recover-list-ordinary-buffer-names) )
+;          (buff_string (mapconcat 'identity buff_list "\n"))
+          )
+    (dolist (item buff_list)
+            (insert item)
+            ;; (insert "\n")
+            (newline 1)
+    )))
 
 
 
