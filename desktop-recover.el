@@ -76,9 +76,9 @@ See `desktop-recover-toc-doc'.
   "The general philosophy behind desktop-recover.el.
 This code, desktop-recover.el, uses desktop.el internally to save
 the state of the emacs \"desktop\", but we very carefully
-over-ride or ignore a number of small features of desktop.el.  By
+over-ride or ignore some features of desktop.el.  By
 itself, desktop.el is very cautious about keeping desktop files
-locked, and it will stop to warn the user if it looks like two
+locked, so that it can warn the user if it looks like two
 different emacs instances are trying to use the same file.
 Further, it dynamically searches likely locations to find a
 desktop file, and makes it a little difficult to over-ride that
@@ -87,16 +87,18 @@ doesn't always work).  This package, desktop-recover.el takes
 a somewhat different approach: our presumption is that there is
 nothing critical about saving desktop state; it's just a
 convenience feature, and so there's nothing important enough
-about it to bother the user for confirmation. The desktop-recover
-save primitives ignore desktop.el locking system:
+about it to want to bother the user about confirmation.
+The desktop-recover save primitives ignore the desktop.el locking system:
   \\[desktop-recover-force-save]
   \\[desktop-recover-force-save-in-desktop-dir]
 See `desktop-recover-toc-doc'.
 ")
-;; TODO further, I think desktop-recover.el is supposed to
-;; use a much simpler directory search, i.e. it has one
+;; TODO further, (I think)
+;; desktop-recover.el uses a much simpler directory search, i.e. it has one
 ;; default, you set a var to something else if you want something
-;; else: `desktop-recover-location'
+;; else: `desktop-recover-location'.  You can set this to nil, if you prefer
+;; desktop.el's dynamically set desktop-dirname behavior, though it
+;; defaults to the "~/.emacs.d" (aka user-emacs-directory)
 
 ;; desktop.el sets the desktop-dirname to nil to supress saves,
 ;; a little less indirectly, the desktop-recover.el save primitives
@@ -138,27 +140,31 @@ See `desktop-recover-toc-doc'.
 ;;;;##########################################################################
 
 ;; defining this first to use it in following defvars, etc.
-(defun desktop-recover-fixdir (dir &optional root)
-  "Fixes the DIR.
+(defun desktop-recover-fixdir (location &optional root)
+  "Fixes the file directory LOCATION.
 Conditions directory paths for portability and robustness.
-Some examples:
+If the directory does not yet exist, this will create it.\n
+Some examples (note, always adds a trailing slash):
  '~/tmp'             => '/home/doom/tmp/'
- '~/tmp/../bin/test' => '/home/bin/test/'
+ '~/tmp/../bin/test' => '/home/bin/test/'\n
 Note: converts relative paths to absolute, using the current
 default-directory setting, unless specified otherwise with the
-ROOT option. As a side-effect: converts the empty string into
-the default-directory or the ROOT setting."
-  (let ((return
+ROOT option. As a side-effect: this converts the empty string into
+default-directory or ROOT."
+  (let ((location
          (substitute-in-file-name
           (convert-standard-filename
            (file-name-as-directory
-            (expand-file-name dir root))))))
-    return))
+            (expand-file-name location root))))))
+    (unless (file-directory-p location)
+      (make-directory location t))
+    location))
 
-(defcustom desktop-recover-location "$HOME/.emacs.d/"
+(defcustom desktop-recover-location user-emacs-directory
   "The default location from which we save and restore desktop files.
-Note: desktop.el has a `desktop-dirname' variable, but that can not be
-used reliably as a user setting, because the code changes it under some
+Defaults to `user-emacs-directory'.  Note: desktop.el has a
+`desktop-dirname' variable, but that can not be used reliably as
+a user setting, because the code changes it under some
 circumstances.")
 (put 'desktop-recover-location 'risky-local-variable t)
 (setq desktop-recover-location
@@ -226,7 +232,8 @@ See: `desktop-recover-dangling-buffers-doc'"
     (switch-to-buffer preserve-buffer)
     (deactivate-mark)
     ;; (desktop-save-in-desktop-dir)
-    (desktop-recover-force-save-in-desktop-dir)
+    ;; (desktop-recover-force-save-in-desktop-dir)
+    (desktop-recover-force-save)
   ))
 
 ;; Note: used by desktop-recover-save-with-danglers
@@ -330,22 +337,26 @@ to be bound to the usual keybinding for exiting emacs."
 We can distinguish between \"real\" buffers and ones that are
 dangling-but-saved by the fact that they've been saved to
 `desktop-recover-tmp-dir'. See `desktop-recover-dangling-buffers-doc'."
+  (interactive)
   (let* ((preserve-buffer (current-buffer))
          (temp-loc desktop-recover-tmp-dir)
          (buffers (desktop-recover-list-ordinary-buffers))  ;; includes real danglers, as well as saved ones
          (location)
          (dangling-content-list) ;; list of lists, buffer name paired with content
          )
-    (unless (file-exists-p temp-loc)
-      (make-directory temp-loc t))
+    ;; if the dir ain't there we got weirder probs than you can fix just by creating it.
+    ;; (unless (file-exists-p temp-loc)
+    ;;   (make-directory temp-loc t))
+
     ;; breaking file associations of any buffers saved to temp-loc
     (dolist (buffy buffers)
-      (setq location (file-name-as-directory (buffer-file-name buffy)))
+      (setq location (file-name-directory (buffer-file-name buffy)))
       (cond ((string= temp-loc location)
              (set-buffer buffy)
              (let ((name (buffer-name)))
                (set-visited-file-name nil)
-               (rename-buffer name))
+               ;; (rename-buffer name) ;; doesn't seem to be necessary
+               )
              )))
     (switch-to-buffer preserve-buffer)
     (deactivate-mark)
@@ -360,7 +371,8 @@ by associating them with files in the standard tmp directory.
 See: `desktop-recover-dangling-buffers-doc'"
   (interactive)
   (desktop-recover-break-file-association-of-danglers)
-  (desktop-recover-force-save-in-desktop-dir)  ;; TODO is this the right "save"?
+  ;; (desktop-recover-force-save-in-desktop-dir)  ;; TODO is this the right "save"?
+  (desktop-recover-force-save)
   )
 
 ;; --------
@@ -370,7 +382,44 @@ See: `desktop-recover-dangling-buffers-doc'"
 ;;     desktop-recover-location
 ;; This should be the default, even if desktop-dirname is set also (maybe for internal reasons)
 
-(defun desktop-recover-force-save (dirname &optional release)
+(defun desktop-recover-force-save (&optional dirname release)
+   "Force save of desktop by wiping out any existing file first.
+This ensures you will not have any questions getting in the way
+about modification times, etc.  If DIRNAME is not given, defaults
+to `desktop-recover-location' or the current `desktop-dirname' in
+that order.  Passes through RELEASE to \\[desktop-save],
+which if t means \"we're done with this desktop\"."
+;; Essentially, setting RELEASE deletes the lock file.
+;; Should I just do that all the time?
+   (let* ((location (or
+                     dirname
+                     desktop-recover-location
+                     desktop-dirname)))
+     (cond ((not desktop-recover-suppress-save)
+            (setq desktop-dirname (file-name-as-directory (expand-file-name location)))
+            (desktop-remove)
+            (desktop-save location release)
+            )
+           (t
+            (message "Desktop save skipped, because desktop-recover-suppress-save is set"))
+           )))
+
+;; TODO I don't understand what this is for...
+(defun desktop-recover-force-save-in-desktop-dir ()
+  "Save the desktop in directory `desktop-dirname'."
+  (interactive)
+  (cond ((not desktop-recover-suppress-save)
+         (if desktop-dirname
+             (desktop-recover-force-save desktop-dirname)
+           (call-interactively 'desktop-save))
+         (message "Desktop saved in %s" (abbreviate-file-name desktop-dirname)))
+        (t
+         (message "Desktop save skipped, because desktop-recover-suppress-save is set"))
+        ))
+
+
+;; preserving this for now, because I don't understand why it's *still* like this...
+(defun desktop-recover-force-save-old (dirname &optional release)
    "Force save of desktop by wiping out any existing file first.
 This ensures you will not have any question about modtimes
 getting in the way."
@@ -382,20 +431,6 @@ getting in the way."
         (t
          (message "Desktop save skipped, because desktop-recover-suppress-save is set"))
          ))
-
-(defun desktop-recover-force-save-in-desktop-dir ()
-  "Save the desktop in directory `desktop-dirname'.
-This does not by itself save dangling buffers."
-  (interactive)
-  (cond ((not desktop-recover-suppress-save)
-         (if desktop-dirname
-             (desktop-recover-force-save desktop-dirname)
-           (call-interactively 'desktop-save))
-         (message "Desktop saved in %s" (abbreviate-file-name desktop-dirname)))
-        (t
-         (message "Desktop save skipped, because desktop-recover-suppress-save is set"))
-        ))
-
 
 ;;--------
 ;; window management utilities
