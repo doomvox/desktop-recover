@@ -141,9 +141,9 @@ See `desktop-recover-toc-doc'.
 
 ;; defining this first to use it in following defvars, etc.
 (defun desktop-recover-fixdir (location &optional root)
-  "Fixes the file directory LOCATION.
+  "Fixes up the file directory LOCATION.
 Conditions directory paths for portability and robustness.
-If the directory does not yet exist, this will create it.\n
+If the directory does not yet exist, it will be created.\n
 Some examples (note, always adds a trailing slash):
  '~/tmp'             => '/home/doom/tmp/'
  '~/tmp/../bin/test' => '/home/bin/test/'\n
@@ -344,10 +344,6 @@ dangling-but-saved by the fact that they've been saved to
          (location)
          (dangling-content-list) ;; list of lists, buffer name paired with content
          )
-    ;; if the dir ain't there we got weirder probs than you can fix just by creating it.
-    ;; (unless (file-exists-p temp-loc)
-    ;;   (make-directory temp-loc t))
-
     ;; breaking file associations of any buffers saved to temp-loc
     (dolist (buffy buffers)
       (setq location (file-name-directory (buffer-file-name buffy)))
@@ -361,8 +357,6 @@ dangling-but-saved by the fact that they've been saved to
     (switch-to-buffer preserve-buffer)
     (deactivate-mark)
   ))
-
-
 
 (defun desktop-recover-save-without-danglers ()
   "Desktop autosave routine that skips dangling buffers of any vintage.
