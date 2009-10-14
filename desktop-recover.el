@@ -194,6 +194,18 @@ Note: this flag is respected by desktop-recover.el code, not desktop.el.")
 ;;======================
 ;; saving desktop files
 
+;; ;; TODO make this reversible.  Use remove-hook.
+;; (defun desktop-recover-do-saves-automatically ()
+;;   "Makes the desktop saved automatically using the auto-save-hook.
+;; It's recommended that you delay doing this until after you've restored
+;; the desktop with \\[desktop-recover-interactive]  \(though that
+;; routine also sets `desktop-recover-suppress-save' as an additional
+;; safety feature\)."
+;;   (add-hook 'auto-save-hook
+;;             (lambda ()
+;;               (desktop-recover-save-with-danglers))))
+
+
 ;; TODO make this reversible.  Use remove-hook.
 (defun desktop-recover-do-saves-automatically ()
   "Makes the desktop saved automatically using the auto-save-hook.
@@ -201,9 +213,9 @@ It's recommended that you delay doing this until after you've restored
 the desktop with \\[desktop-recover-interactive]  \(though that
 routine also sets `desktop-recover-suppress-save' as an additional
 safety feature\)."
-  (add-hook 'auto-save-hook
-            (lambda ()
-              (desktop-recover-save-with-danglers))))
+  (add-hook 'auto-save-hook 'desktop-recover-save-with-danglers))
+
+
 
 ;; TODO ideally: break-out a list of major-modes to be skipped.
 (defun desktop-recover-save-with-danglers ()
@@ -694,7 +706,7 @@ with auto-save file recovery, if that's indicated."
             )
           ;; (set-buffer recover-list-buffer) ;; do you *trust* save-excursion?
           (forward-line 1)
-          (< (line-number-at-pos) line-count)))
+          (<= (line-number-at-pos) line-count)))
     ;; after doing a recovery, must clean-up so that this can be used next time
     (desktop-recover-reset-clean-exit-flag)
     ;; TODO bring current-name/current-path to the fore, and do a (list-buffers)
