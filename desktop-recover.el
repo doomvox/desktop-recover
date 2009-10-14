@@ -397,10 +397,8 @@ that order.  Passes through RELEASE to \\[desktop-save],
 which if t means \"we're done with this desktop\"."
 ;; Essentially, setting RELEASE deletes the lock file.
 ;; Should I just do that all the time?
-   (let* ((location (or
-                     dirname
-                     desktop-recover-location
-                     desktop-dirname)))
+   (let* ((location (desktop-recover-location dirname))
+          )
      (cond ((not desktop-recover-suppress-save)
             (setq desktop-dirname (file-name-as-directory (expand-file-name location)))
             (desktop-remove)
@@ -409,6 +407,17 @@ which if t means \"we're done with this desktop\"."
            (t
             (message "Desktop save skipped, because desktop-recover-suppress-save is set"))
            )))
+
+(defun desktop-recover-location (&optional dirname)
+  "The standard behavior for choosing the desktop save location.
+If DIRNAME is not given, defaults to `desktop-recover-location'
+or the current `desktop-dirname' in that order."
+  (or
+   dirname
+   desktop-recover-location
+   desktop-dirname))
+
+
 
 ;; TODO I don't understand what this is for...
 (defun desktop-recover-force-save-in-desktop-dir ()
@@ -568,6 +577,8 @@ desktop-create-buffer call.  See \\[desktop-recover-desktop-list-doc]."
       )
     desktop-list))
 
+;; TODO What advantages does this have over
+;;   desktop-recover-location
 (defun desktop-recover-file-path (&optional dirname)
   "Returns the full name and path of the desktop file.
 Uses the standard name \".emacs.desktop\" (determined from
@@ -685,7 +696,7 @@ with auto-save file recovery, if that's indicated."
                           (dcb-code (get-char-property (point) 'dcb))
                           (auto-save (get-char-property (point) 'auto-save))
                           ;; (mode (get-char-property (point) 'mode))
-                          ;; (name (get-char-property (point) 'name))
+                          (name (get-char-property (point) 'name))
                           ;; (path (get-char-property (point) 'path))
                           ;;
                           ;; need to mimic the desktop.el context of dcb calls
@@ -697,11 +708,26 @@ with auto-save file recovery, if that's indicated."
                           )
                      ;; do it to it
                      (eval (read (eval dcb-code))) ; 1st eval is object->string
+
+                     ;; buffer does not seem to have opened successfully
+                     (cond ((not (string= (buffer-name) name))
+                            ;; if there's an auto-save, open it directly, then try to recover
+                            (cond ((and (desktop-recover-newer-auto-save path)
+                                        (string-match auto-save-pattern auto-save))
+                                   (file-find path)
+                                   (recover-this-file)
+                                   ))
+
+                            ))
+
+                     ;; looks like a regular file (not dired, etc) - recover auto-save, if indicated
                      (let ((bfn (buffer-file-name)))
                        (cond ((and
-                               (string-match auto-save-pattern auto-save)
-                               (and bfn (file-exists-p bfn)))
+                               bfn
+                               (string-match auto-save-pattern auto-save))
                               (recover-this-file))))
+
+
                      )))
             )
           ;; (set-buffer recover-list-buffer) ;; do you *trust* save-excursion?
@@ -907,11 +933,13 @@ name, path, mode and dcb-code."
 (defun desktop-recover-newer-auto-save (path)
   "Given PATH (full path and file name) check for newer auto-save file."
   (let* (
-         (name (file-name-nondirectory path)) ;; could just pass this in too
+         (name (file-name-nondirectory path)) ;; could just pass this in also
+         (loc  (file-name-directory path))
          (a-s-name (format "#%s#" name))
+         (auto-save (concat loc a-s-name))
          )
-    ;; if a-s-name does not exist, this is nil
-    (file-newer-than-file-p a-s-name path)
+    ;; if autosave does not exist, this is nil
+    (file-newer-than-file-p auto-save path)
     ))
 
 ;;=======
