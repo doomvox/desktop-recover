@@ -46,19 +46,29 @@
 ;;   dummy variables with documentation attached
 
 ;; TODO add a directory of all of the other *-doc
-(defvar desktop-revover-toc-doc ""
-  "")
+(defvar desktop-recover-toc-doc ""
+  "Several variables are defined here just to have a convenient
+place to attach documentation strings:\n
 
-(defvar desktop-revover-desktop-doc ""
+`desktop-recover-desktop-doc'
+`desktop-recover-philosophy-doc'
+`desktop-recover-dangling-buffers-doc'
+`desktop-recover-desktop-list-doc'
+
+")
+
+(defvar desktop-recover-desktop-doc ""
   "In this context the \"desktop\" is the emacs desktop, i.e. the
 state of all the current buffers that are open at a given moment,
 except for the dynamic buffers \(usually named with a leading
 asterix\) and a few other odds and ends.  This is the terminology
 used by the package \"desktop.el\" \(already standard with GNU
-emacs\).  This package, \"desktop-recover.el\" works with
+emacs\).  The package \"desktop-recover.el\" works with
 \"desktop.el\", using it for crash recovery purposes \(the sort
 of thing people working over flaky network connections have to
-deal with\).")  ;; it's also likely that this can
+deal with\).
+See `desktop-recover-toc-doc'.
+")  ;; it's also likely that this can
 ;; be used with project-root to implement project-specific
 ;; desktops.
 
@@ -81,6 +91,7 @@ about it to bother the user for confirmation. The desktop-recover
 save primitives ignore desktop.el locking system:
   \\[desktop-recover-force-save]
   \\[desktop-recover-force-save-in-desktop-dir]
+See `desktop-recover-toc-doc'.
 ")
 ;; TODO further, I think desktop-recover.el is supposed to
 ;; use a much simpler directory search, i.e. it has one
@@ -96,12 +107,16 @@ save primitives ignore desktop.el locking system:
 Typically we will exclude the special display buffers (which
 usually begin with an asterix), dired buffers, and so on.  We're
 concerned here with buffers used for temporary notes that might've
-been prematurely lost by an emacs crash \(due to a broken connect\).
-
-Along with the automated desktop save feature, we will make save
+been prematurely lost by an emacs crash \(e.g. due to a broken connection\).\n
+Along with the automated desktop save feature, we will save
 these dangling buffers to temporary files, making them a little
-less ephemeral, though not as permanent as ordinary files.
-A clean exit from emacs should erase them.")
+less ephemeral, though not as permanent as ordinary files.\n
+Nothing else should be saved to this special temp directory,
+because we'll use this location later to distinguish dangling
+buffers even after they've been saved.  This way
+a clean exit from emacs can skip them.
+See `desktop-recover-toc-doc'.
+")
 
 (defvar desktop-recover-desktop-list-doc ""
   "Many functions in this package work with a data-structure
@@ -114,7 +129,9 @@ desktop-create-buffer call.  The \"name\" is the name sans path,
 the \"path\" is the full-name, including path, the mode is the
 name of the associated emacs mode (e.g. \"text-mode\"), and the
 \"desktop-create-buffer call\" is the code (in string form) that
-will need to be run to restore the buffer.")
+will need to be run to restore the buffer.
+See `desktop-recover-toc-doc'.
+")
 
 ;;;;##########################################################################
 ;;;;  User Options, Variables
@@ -171,7 +188,7 @@ Note: this flag is respected by desktop-recover.el code, not desktop.el.")
 ;;======================
 ;; saving desktop files
 
-;; TODO Why not make this a toggle?  Use remove-hook.
+;; TODO make this reversible.  Use remove-hook.
 (defun desktop-recover-do-saves-automatically ()
   "Makes the desktop saved automatically using the auto-save-hook.
 It's recommended that you delay doing this until after you've restored
@@ -224,7 +241,7 @@ Returns a list of buffer objects."
          )
     (save-excursion
       (dolist (buffy ordinaries-list)
-        (set-buffer buffy) ; switch to buffer so we can check 'major-mode'
+        (set-buffer buffy) ;; switch to buffer so we can check 'major-mode'
         (let* ((file-nameo (buffer-file-name buffy) )
                (buffy-name (buffer-name  buffy) )
                )
@@ -236,6 +253,8 @@ Returns a list of buffer objects."
       (deactivate-mark)
   output-list))))
 
+;; Note: used by desktop-recover-list-dangling-buffers
+;; and hence by desktop-recover-save-with-danglers
 (defun desktop-recover-list-ordinary-buffers ()
   "List buffers, skips: dired, shell, debugger, internal and display buffers.
 Returns a list of buffer objects.  Note that 'ordinary' buffers include
@@ -273,7 +292,7 @@ Returns a list of buffer objects.  Note that 'ordinary' buffers include
 (defun desktop-recover-save-buffers-kill-terminal ()
   "Wrapper around save-buffers-kill-terminal to flag clean exits.
 Actually, it flags the fact that we *tried* to exit cleanly, since
-there's easy no way to check if all saves were completed before
+there's no easy way to check if all saves were completed before
 emacs died."
   (interactive)
   (let* ((clean-exit-flag-file
@@ -292,35 +311,60 @@ emacs died."
     (save-buffers-kill-terminal)
     ))
 
-;; TODO alternately, we could do this with the kill-emacs-hook.
-;; TODO the idea in the docs here is ill-concieved... maybe need code
-;; that forcibly deletes danglers, so that if they've been saved before
-;; so they won't be saved again like regular files?
+
 (defun desktop-recover-save-buffers-kill-terminal-exp ()
   "For doing a \"clean\" exit, without need to save danglers.
 Essentially a wrapper around save-buffers-kill-terminal, intended
 to be bound to the usual keybinding for exiting emacs."
-  ;; (desktop-recover-break-file-association-of-danglers) ;; TODO write this
-  ;; doing one last save *without* the dangling buffers
-  (desktop-recover-force-save-in-desktop-dir)
+;; TODO alternately, we could do this with the kill-emacs-hook.
+;;
+;; doing one last desktop save *without* the dangling buffers
+;;  (desktop-recover-break-file-association-of-danglers)
+;;  (desktop-recover-force-save-in-desktop-dir)
+  (desktop-recover-save-without-danglers)
   (save-buffers-kill-terminal)
   )
 
 (defun desktop-recover-break-file-association-of-danglers ()
-  "Remove association between buffers and files in `desktop-recover-tmp-dir'."
-  ;; TODO how exactly do you do this?
-  ;; first thought: save contents of each dangler to strings,
-  ;; delete files and buffers, recreate each buffer from string
-  ;; (If that dies in the middle, the user will be very confused.
-  ;; is this worth doing?)
-  ;; TODO consider alternate approach:
-  ;; custom desktop save code that removes danglers from the dcb list,
-  ;; *mmuuuuch* neater.
-)
+  "Remove association between dangling buffers and temp files.
+We can distinguish between \"real\" buffers and ones that are
+dangling-but-saved by the fact that they've been saved to
+`desktop-recover-tmp-dir'. See `desktop-recover-dangling-buffers-doc'."
+  (let* ((preserve-buffer (current-buffer))
+         (temp-loc desktop-recover-tmp-dir)
+         (buffers (desktop-recover-list-ordinary-buffers))  ;; includes real danglers, as well as saved ones
+         (location)
+         (dangling-content-list) ;; list of lists, buffer name paired with content
+         )
+    (unless (file-exists-p temp-loc)
+      (make-directory temp-loc t))
+    ;; breaking file associations of any buffers saved to temp-loc
+    (dolist (buffy buffers)
+      (setq location (file-name-as-directory (buffer-file-name buffy)))
+      (cond ((string= temp-loc location)
+             (set-buffer buffy)
+             (let ((name (buffer-name)))
+               (set-visited-file-name nil)
+               (rename-buffer name))
+             )))
+    (switch-to-buffer preserve-buffer)
+    (deactivate-mark)
+  ))
 
+
+
+(defun desktop-recover-save-without-danglers ()
+  "Desktop autosave routine that skips dangling buffers of any vintage.
+This means that it screens out the ones that have been made less ephemeral
+by associating them with files in the standard tmp directory.
+See: `desktop-recover-dangling-buffers-doc'"
+  (interactive)
+  (desktop-recover-break-file-association-of-danglers)
+  (desktop-recover-force-save-in-desktop-dir)  ;; TODO is this the right "save"?
+  )
 
 ;; --------
-;; desktop-recover.el save primitives (all other "saves" here use these internally)
+;; desktop-recover.el save primitives (all other "saves" use these internally)
 
 ;; TODO SOON why don't these primitives explicitly use the var:
 ;;     desktop-recover-location
@@ -574,27 +618,19 @@ Runs the appropriate \"desktop-create-buffer\" calls stored
 in the desktop-list data structure.  Follows up with a
 with auto-save file recovery, if that's indicated."
   (interactive)
-  (let* (;; Avoid desktop saving during evaluation of desktop buffer.
-         (desktop-recover-suppress-save t)
+  (let* (
+         (recover-list-buffer (current-buffer))
+         (desktop-recover-suppress-save t) ;; Don't save desktop during load
          (marker-pattern
           (concat "^[ \t]"
                   desktop-recover-marker
                   "\\*")) ;; line begins with asterix
-         (auto-save-pattern desktop-recover-autosave-marker) ;; hash mark found
+         (auto-save-pattern desktop-recover-autosave-marker)
          (line-count (count-lines (point-min) (point-max)))
-         (dcb-code)
-         (auto-save-field)
          ;; saving the file the cursor is pointing at
          (current-name (get-char-property (point) 'name))
          (current-path (get-char-property (point) 'path))
          ;;
-         ;; When doing the eval/read of dcb blocks, need to mimic
-         ;; some of the context they would've had inside of
-         ;; desktop.el (even though we don't care about these features).
-         (desktop-first-buffer nil)
-         (desktop-buffer-ok-count 0)
-         (desktop-buffer-fail-count 0)
-         (owner (desktop-owner))
          )
     (goto-char (point-min))
     (while ;; loop over all lines in buffer
@@ -602,22 +638,37 @@ with auto-save file recovery, if that's indicated."
           (save-excursion
             (move-beginning-of-line 1)
             ;; if line is marked with an asterix...
-            (if (thing-at-point-looking-at marker-pattern)
-                (progn
-                  (setq dcb-code
-                        (get-char-property (point) 'dcb))
-                  ;; do it to it
-                  (eval (read (eval dcb-code))) ;; TODO why the first eval?
-                  (setq auto-save-field
-                        (get-char-property (point) 'auto-save-mark))
-                  (if (string-match auto-save-pattern auto-save-field)
-                      (recover-this-file))
-                  ))
-            )))
-    (forward-line 1)
-    (< (line-number-at-pos) line-count)
+            (cond ((thing-at-point-looking-at marker-pattern)
+                   (let* (
+                          ;; unpacking info stashed in 1st char properties
+                          (dcb-code (get-char-property (point) 'dcb))
+                          (auto-save (get-char-property (point) 'auto-save))
+                          ;; (mode (get-char-property (point) 'mode))
+                          ;; (name (get-char-property (point) 'name))
+                          ;; (path (get-char-property (point) 'path))
+                          ;;
+                          ;; need to mimic the desktop.el context of dcb calls
+                          ;; (even though we don't care about these features).
+                          (desktop-first-buffer nil)
+                          (desktop-buffer-ok-count 0)
+                          (desktop-buffer-fail-count 0)
+                          (owner (desktop-owner))
+                          )
+                     ;; do it to it
+                     (eval (read (eval dcb-code))) ; 1st eval is object->string
+                     (let ((bfn (buffer-file-name)))
+                       (cond ((and
+                               (string-match auto-save-pattern auto-save)
+                               (and bfn (file-exists-p bfn)))
+                              (recover-this-file))))
+                     )))
+            )
+          ;; (set-buffer recover-list-buffer) ;; do you *trust* save-excursion?
+          (forward-line 1)
+          (< (line-number-at-pos) line-count)))
     ;; after doing a recovery, must clean-up so that this can be used next time
     (desktop-recover-reset-clean-exit-flag)
+    ;; TODO bring current-name/current-path to the fore, and do a (list-buffers)
     ))
 
 (defun desktop-recover-mark ()
@@ -659,8 +710,9 @@ with auto-save file recovery, if that's indicated."
   (forward-line 1))
 
 ;; TODO
-;; Do I need to add commands to allow the user to manually
-;; reject an auto-save file?
+;; Add commands to allow the user to manually reject an auto-save file?
+;; (that would be a very unusual case, and the user will *never*
+;; remember that the feature exists).
 
 ;; This is intended to be run at emacs init time (run from
 ;; desktop-recover-interactive) so there's no need for a keybinding
@@ -726,7 +778,7 @@ These are buffers that existed when the last desktop save was done."
       (put-text-property 0 1 'path path line)
       (put-text-property 0 1 'mode mode line)
       (put-text-property 0 1 'marker marker-field line)
-      (put-text-property 0 1 'auto-save-mark auto-save-mark line)
+      (put-text-property 0 1 'auto-save auto-save-field line)
       (setq menu-contents
             (concat menu-contents line "\n")
       ))
@@ -775,7 +827,6 @@ These are buffers that existed when the last desktop save was done."
              )
     ))
 
-
 (defun desktop-recover-clean-exit-p ()
   "Does it look like emacs exited cleanly?"
   (let* (
@@ -789,7 +840,7 @@ These are buffers that existed when the last desktop save was done."
 
 ;; TODO this has access to the mode -- why not use it?
 ;; could distinguish between dired & shell buffers at this stage?
-;; might require doing dynamic buffer filtering later than I am
+;; might be good to do dynamic buffer filtering later than I am...
 (defun desktop-recover-by-default-p (record)
   "Examine RECORD to determine if this buffer should be reloaded by default.
 A file should not be re-loaded if was an automatically saved temporary
