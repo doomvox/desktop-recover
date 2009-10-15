@@ -644,7 +644,7 @@ conversion from string to list first."
 (defvar desktop-recover-marker "*"
   "Symbol used to show a buffer will be reloaded \(typically \"*\"\).")
 
-(defvar desktop-recover-autosave-marker "#"
+(defvar desktop-recover-auto-save-marker "#"
   "Symbol used to show that a more recent auto-save file exists \(typically \"#\"\).")
 
 (defvar desktop-recover-unmarker " "
@@ -677,7 +677,7 @@ with auto-save file recovery, if that's indicated."
           (concat "^[ \t]"
                   desktop-recover-marker
                   "\\*")) ;; line begins with asterix
-         (auto-save-pattern desktop-recover-autosave-marker)
+         (auto-save-pattern desktop-recover-auto-save-marker)
          (line-count (count-lines (point-min) (point-max)))
          ;; saving the file the cursor is pointing at
          (current-name (get-char-property (point) 'name))
@@ -693,13 +693,13 @@ with auto-save file recovery, if that's indicated."
             (cond ((thing-at-point-looking-at marker-pattern)
                    (let* (
                           ;; unpacking info stashed in 1st char properties
-                          (dcb-code (get-char-property (point) 'dcb))
-                          (auto-save (get-char-property (point) 'auto-save))
-                          ;; (mode (get-char-property (point) 'mode))
-                          (name (get-char-property (point) 'name))
-                          (path (get-char-property (point) 'path))
+                          (dcb-code  (eval (get-char-property (point) 'dcb)))
+                          (auto-save (eval (get-char-property (point) 'auto-save)))
+                          ;; (mode (eval (get-char-property (point) 'mode)))
+                          (name (eval (get-char-property (point) 'name)))
+                          (path (eval (get-char-property (point) 'path)))
                           ;;
-                          ;; need to mimic the desktop.el context of dcb calls
+                          ;; need to mimic the context for dcb calls in desktop.el
                           ;; (even though we don't care about these features).
                           (desktop-first-buffer nil)
                           (desktop-buffer-ok-count 0)
@@ -707,7 +707,7 @@ with auto-save file recovery, if that's indicated."
                           (owner (desktop-owner))
                           )
                      ;; do it to it
-                     (eval (read (eval dcb-code))) ; 1st eval is object->string
+                     (eval (read dcb-code))
 
                      ;; covering a corner case: file was never saved, but
                      ;; there is an auto-save file for it.
@@ -804,7 +804,7 @@ These are buffers that existed when the last desktop save was done."
   (let* ((name) (path) (mode) (dcb-code)
         (marker desktop-recover-marker)     ;; "*"
         (unmarker desktop-recover-unmarker) ;; " "
-        (auto-save-mark desktop-recover-autosave-marker) ;; "#"
+        (auto-save-mark desktop-recover-auto-save-marker) ;; "#"
         (line "")
         (menu-contents "")
         ;; (line-fmt " %1s %-33s%-42s %1s")
