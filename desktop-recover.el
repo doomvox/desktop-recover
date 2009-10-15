@@ -131,7 +131,10 @@ desktop-create-buffer call.  The \"name\" is the name sans path,
 the \"path\" is the full-name, including path, the mode is the
 name of the associated emacs mode (e.g. \"text-mode\"), and the
 \"desktop-create-buffer call\" is the code (in string form) that
-will need to be run to restore the buffer.
+will need to be run to restore the buffer.\n
+Note, the name \"path\" may be confusing: normally, I would call
+this the \"full-name\", but in the case of dired buffers, a
+directory is all it is, so we go by the more general name \"path\".
 See `desktop-recover-toc-doc'.
 ")
 
@@ -192,32 +195,22 @@ Note: this flag is respected by desktop-recover.el code, not desktop.el.")
 (defvar desktop-buffer-fail-count)
 
 ;;======================
-;; saving desktop files
+;; saving desktop files (with dangler management)
 
-;; ;; TODO make this reversible.  Use remove-hook.
-;; (defun desktop-recover-do-saves-automatically ()
-;;   "Makes the desktop saved automatically using the auto-save-hook.
+(defun desktop-recover-do-saves-automatically ()
+  "Makes the desktop saved automatically using the auto-save-hook."
+  (add-hook 'auto-save-hook 'desktop-recover-save-with-danglers))
+;; TODO this might be a dead issue now:
 ;; It's recommended that you delay doing this until after you've restored
 ;; the desktop with \\[desktop-recover-interactive]  \(though that
 ;; routine also sets `desktop-recover-suppress-save' as an additional
-;; safety feature\)."
-;;   (add-hook 'auto-save-hook
-;;             (lambda ()
-;;               (desktop-recover-save-with-danglers))))
+;; safety feature\).
 
+(defun desktop-recover-stop-automatic-saves ()
+  "Stops the desktop from being saved automatically via the auto-save-hook."
+  (remove-hook 'auto-save-hook 'desktop-recover-save-with-danglers))
 
-;; TODO make this reversible.  Use remove-hook.
-(defun desktop-recover-do-saves-automatically ()
-  "Makes the desktop saved automatically using the auto-save-hook.
-It's recommended that you delay doing this until after you've restored
-the desktop with \\[desktop-recover-interactive]  \(though that
-routine also sets `desktop-recover-suppress-save' as an additional
-safety feature\)."
-  (add-hook 'auto-save-hook 'desktop-recover-save-with-danglers))
-
-
-
-;; TODO ideally: break-out a list of major-modes to be skipped.
+;; TODO ideally: break-out a var with a list of major-modes to be skipped.
 (defun desktop-recover-save-with-danglers ()
   "Desktop autosave routine that preserves buffers that have no associated files.
 Works by saving them to a standard tmp directory, then using desktop.el to save
@@ -308,42 +301,6 @@ Returns a list of buffer objects.  Note that 'ordinary' buffers include
       (deactivate-mark)
       output-list)))
 
-(defun desktop-recover-save-buffers-kill-terminal ()
-  "Wrapper around save-buffers-kill-terminal to flag clean exits.
-Actually, it flags the fact that we *tried* to exit cleanly, since
-there's no easy way to check if all saves were completed before
-emacs died."
-  (interactive)
-  (let* ((clean-exit-flag-file
-           (concat
-            (desktop-recover-fixdir
-             desktop-recover-tmp-dir)
-            desktop-recover-clean-exit-flag))
-         ;; set these to override defaults
-         (output-buffer nil)
-         (error-buffer  nil)
-         (cmd (format "touch %s" clean-exit-flag-file))
-         )
-    (desktop-recover-save-with-danglers) ;; TODO double-check. right save?
-    ;; we do this *after* the above, because that also clears the flag
-    (shell-command cmd output-buffer error-buffer)
-    (save-buffers-kill-terminal)
-    ))
-
-
-(defun desktop-recover-save-buffers-kill-terminal-exp ()
-  "For doing a \"clean\" exit, without need to save danglers.
-Essentially a wrapper around save-buffers-kill-terminal, intended
-to be bound to the usual keybinding for exiting emacs."
-;; TODO alternately, we could do this with the kill-emacs-hook.
-;;
-;; doing one last desktop save *without* the dangling buffers
-;;  (desktop-recover-break-file-association-of-danglers)
-;;  (desktop-recover-force-save-in-desktop-dir)
-  (desktop-recover-save-without-danglers)
-  (save-buffers-kill-terminal)
-  )
-
 (defun desktop-recover-break-file-association-of-danglers ()
   "Remove association between dangling buffers and temp files.
 We can distinguish between \"real\" buffers and ones that are
@@ -381,6 +338,21 @@ See: `desktop-recover-dangling-buffers-doc'"
   (desktop-recover-force-save)
   )
 
+(defun desktop-recover-save-buffers-kill-terminal ()
+  "For doing a \"clean\" exit, without the need to save danglers.
+Essentially a wrapper around save-buffers-kill-terminal, intended
+to be bound to the usual keybinding for exiting emacs."
+;; TODO alternately, we could do this with the kill-emacs-hook,
+;; rather than rebinding a key.
+  (desktop-recover-stop-automatic-saves)
+;; doing one last desktop save *without* the dangling buffers
+;;  (desktop-recover-break-file-association-of-danglers)
+;;  (desktop-recover-force-save-in-desktop-dir)
+  (desktop-recover-save-without-danglers)
+  (save-buffers-kill-terminal)
+  )
+
+
 ;; --------
 ;; desktop-recover.el save primitives (all other "saves" use these internally)
 
@@ -408,6 +380,7 @@ which if t means \"we're done with this desktop\"."
             (message "Desktop save skipped, because desktop-recover-suppress-save is set"))
            )))
 
+;; TODO See also: desktop-recover-file-path.  Why have both?
 (defun desktop-recover-location (&optional dirname)
   "The standard behavior for choosing the desktop save location.
 If DIRNAME is not given, defaults to `desktop-recover-location'
@@ -416,7 +389,6 @@ or the current `desktop-dirname' in that order."
    dirname
    desktop-recover-location
    desktop-dirname))
-
 
 
 ;; TODO I don't understand what this is for...
@@ -550,7 +522,6 @@ desktop-create-buffer call.  See \\[desktop-recover-desktop-list-doc]."
                     (concat dcb-string " " item))
                   (split-string buffer-section dcb-pattern t)))
     (dolist (dcb-code dcb-list)
-      (message "dcb code: %s\n" dcb-code)
       ;; parse dcb-code as a list
       (setq dcb-lines (split-string dcb-code "\n" t))
       ;;
@@ -561,11 +532,9 @@ desktop-create-buffer call.  See \\[desktop-recover-desktop-list-doc]."
       (setq misc (nth 8 dcb-lines))  ;; will need extra clean?
       ;;
       (cond ((string= mode "dired-mode")
-             (message "case dired")
              (setq first-misc (desktop-recover-snag-first-item misc))
              (setq path first-misc))
             (t
-             (message "default (non-dired)")
              (setq path file-name)
              ))
       (setq record
@@ -601,24 +570,38 @@ the existance of the file.  Sets `desktop-dirname' as a side-effect."
 
 (defun desktop-recover-clean-string (string)
   "Strip leading/trailing whitespace, and also, leading single-quotes."
-  (let ((strip-lead-space-pattern "^[ \t]*\\([^ \t]*.*\\)")
-        (strip-trail-space-pattern "\\(.*?\\)[ \t]*$")
-        (strip-lead-apostrophe-pattern "^'*\\(.*\\)")
-        (temp1)
-        (temp2)
-        (clean)
+  (let ((strip-lead-space-pattern      "^[ \t]*\\([^ \t]*.*\\)" )
+        (strip-trail-space-pattern     "\\(.*?\\)[ \t]*$"       )
+        (strip-lead-apostrophe-pattern "^'*\\(.*\\)"            )
+        (strip-lead-quote-pattern      "^\"*\\(.*\\)")
+        (strip-trail-quote-pattern     "\\(.*?\\)\"*$")
         )
-    (if
-        (string-match strip-lead-space-pattern string)
-        (setq temp1 (match-string 1 string))
-      (setq temp1 string))
-    (if
-        (string-match strip-trail-space-pattern temp1)
-        (setq temp2 (match-string 1 temp1))
-      (setq temp2 temp1))
-    (string-match strip-lead-apostrophe-pattern temp2)
-    (setq clean (match-string 1 temp2))
-    clean))
+    (setq string
+          (cond ((string-match strip-lead-space-pattern string)
+                 (match-string 1 string))
+                (t
+                 string)))
+    (setq string
+          (cond ((string-match strip-trail-space-pattern string)
+                 (match-string 1 string))
+                (t
+                 string)))
+    (setq string
+          (cond ((string-match strip-lead-apostrophe-pattern string)
+                 (match-string 1 string))
+                (t
+                 string)))
+    (setq string
+          (cond ((string-match strip-lead-quote-pattern string)
+                 (match-string 1 string))
+                (t
+                 string)))
+    (setq string
+          (cond ((string-match strip-trail-quote-pattern string)
+                 (match-string 1 string))
+                (t
+                 string)))
+    string))
 
 (defun desktop-recover-snag-first-item (list-string)
   "Get's the first item out of the list stored in LIST-STRING.
@@ -634,7 +617,7 @@ conversion from string to list first."
 
 
 ;;========
-;; interactive buffer selection for recovery
+;; interactive menu for selecting what to recover
 
 ;; Display a list of marker, name, path, mode,
 ;; where the marker is set ("*") if buffer is to be loaded,
@@ -717,7 +700,7 @@ with auto-save file recovery, if that's indicated."
                             (cond ((and
                                     (desktop-recover-newer-auto-save path)
                                     (string-match auto-save-pattern auto-save))
-                                   (file-find path)
+                                   (find-file path)
                                    (recover-this-file)
                                    ))
                             ))
@@ -814,10 +797,17 @@ These are buffers that existed when the last desktop save was done."
         )
     (dolist (record desktop-list)
       ;; unpack the record
-      (setq name     (nth 0 record))
-      (setq path     (nth 1 record))
-      (setq mode     (nth 2 record))
-      (setq dcb-code (nth 3 record))
+
+;; TODO NEXT experimental
+;;       (setq name     (nth 0 record))
+;;       (setq path     (nth 1 record))
+;;       (setq mode     (nth 2 record))
+;;       (setq dcb-code (nth 3 record))
+      (setq name     (eval (nth 0 record)))
+      (setq path     (eval (nth 1 record)))
+      (setq mode     (eval (nth 2 record)))
+      (setq dcb-code (eval (nth 3 record)))
+
       (setq marker-field
             (cond ((desktop-recover-by-default-p record)
                    desktop-recover-marker)
@@ -933,6 +923,7 @@ name, path, mode and dcb-code."
 (defun desktop-recover-newer-auto-save (path)
   "Given PATH (full path and file name) check for newer auto-save file."
   (let* (
+         (path (desktop-recover-clean-string path))
          (name (file-name-nondirectory path)) ;; could just pass this in also
          (loc  (file-name-directory path))
          (a-s-name (format "#%s#" name))
@@ -944,6 +935,32 @@ name, path, mode and dcb-code."
 
 ;;=======
 ;; boneyard
+
+;;--------
+;; clean save flag file code
+
+(defun desktop-recover-save-buffers-kill-terminal-old ()
+  "Wrapper around save-buffers-kill-terminal to flag clean exits.
+Actually, it flags the fact that we *tried* to exit cleanly, since
+there's no easy way to check if all saves were completed before
+emacs died."
+  (interactive)
+  (let* ((clean-exit-flag-file
+           (concat
+            (desktop-recover-fixdir
+             desktop-recover-tmp-dir)
+            desktop-recover-clean-exit-flag))
+         ;; set these to override defaults
+         (output-buffer nil)
+         (error-buffer  nil)
+         (cmd (format "touch %s" clean-exit-flag-file))
+         )
+    (desktop-recover-save-with-danglers) ;; TODO double-check. right save?
+    ;; we do this *after* the above, because that also clears the flag
+    (shell-command cmd output-buffer error-buffer)
+    (save-buffers-kill-terminal)
+    ))
+
 
 (defun desktop-read-initialization-old (&optional dirname)
   "Does precisely the same folderol as the desktop-read function,
@@ -1082,6 +1099,29 @@ Returns a list of buffer objects."
       (switch-to-buffer preserve-buffer)
       (deactivate-mark)
   output-list)))
+
+
+;; no like style on this one
+(defun desktop-recover-clean-string-old (string)
+  "Strip leading/trailing whitespace, and also, leading single-quotes."
+  (let ((strip-lead-space-pattern "^[ \t]*\\([^ \t]*.*\\)")
+        (strip-trail-space-pattern "\\(.*?\\)[ \t]*$")
+        (strip-lead-apostrophe-pattern "^'*\\(.*\\)")
+        (temp1)
+        (temp2)
+        (clean)
+        )
+    (if
+        (string-match strip-lead-space-pattern string)
+        (setq temp1 (match-string 1 string))
+      (setq temp1 string))
+    (if
+        (string-match strip-trail-space-pattern temp1)
+        (setq temp2 (match-string 1 temp1))
+      (setq temp2 temp1))
+    (string-match strip-lead-apostrophe-pattern temp2)
+    (setq clean (match-string 1 temp2))
+    clean))
 
 ;; ---------
 ;; boneyard of desktop-save routines
