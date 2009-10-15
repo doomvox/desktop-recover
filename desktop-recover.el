@@ -697,7 +697,7 @@ with auto-save file recovery, if that's indicated."
                           (auto-save (get-char-property (point) 'auto-save))
                           ;; (mode (get-char-property (point) 'mode))
                           (name (get-char-property (point) 'name))
-                          ;; (path (get-char-property (point) 'path))
+                          (path (get-char-property (point) 'path))
                           ;;
                           ;; need to mimic the desktop.el context of dcb calls
                           ;; (even though we don't care about these features).
@@ -709,25 +709,25 @@ with auto-save file recovery, if that's indicated."
                      ;; do it to it
                      (eval (read (eval dcb-code))) ; 1st eval is object->string
 
+                     ;; covering a corner case: file was never saved, but
+                     ;; there is an auto-save file for it.
+                     ;;
                      ;; buffer does not seem to have opened successfully
                      (cond ((not (string= (buffer-name) name))
-                            ;; if there's an auto-save, open it directly, then try to recover
-                            (cond ((and (desktop-recover-newer-auto-save path)
-                                        (string-match auto-save-pattern auto-save))
+                            (cond ((and
+                                    (desktop-recover-newer-auto-save path)
+                                    (string-match auto-save-pattern auto-save))
                                    (file-find path)
                                    (recover-this-file)
                                    ))
-
                             ))
-
-                     ;; looks like a regular file (not dired, etc) - recover auto-save, if indicated
+                     ;; looks like a regular file (not dired, etc),
+                     ;; recover auto-save, if that's indicated
                      (let ((bfn (buffer-file-name)))
                        (cond ((and
                                bfn
                                (string-match auto-save-pattern auto-save))
                               (recover-this-file))))
-
-
                      )))
             )
           ;; (set-buffer recover-list-buffer) ;; do you *trust* save-excursion?
