@@ -290,6 +290,16 @@ emacs died."
   "Stops the desktop from being saved automatically via the auto-save-hook."
   (remove-hook 'auto-save-hook 'desktop-recover-save-with-danglers))
 
+(defun desktop-recover-save-buffers-kill-terminal ()
+  "For doing a \"clean\" exit.
+Essentially a wrapper around save-buffers-kill-terminal.
+This is intended to be bound to the usual keybinding for exiting emacs."
+   (desktop-recover-stop-automatic-saves)
+   (desktop-recover-save-with-danglers)
+   (desktop-recover-flag-clean-exit)
+   (save-buffers-kill-terminal)
+   )
+
 ;; TODO ideally: break-out a var with a list of major-modes to be skipped.
 ;;      but skipped *when*?  There are *three stages* where they can be "skipped".
 (defun desktop-recover-save-with-danglers ()
@@ -417,17 +427,6 @@ See: `desktop-recover-dangling-buffers-doc'"
   (interactive)
   (desktop-recover-break-file-association-of-danglers)
   (desktop-recover-force-save))
-
-(defun desktop-recover-save-buffers-kill-terminal ()
-  "For doing a \"clean\" exit.
-Essentially a wrapper around save-buffers-kill-terminal.
-This is intended to be bound to the usual keybinding for exiting emacs."
-   (desktop-recover-stop-automatic-saves)
-;;   (desktop-recover-save-without-danglers)
-   (desktop-recover-save-with-danglers)
-   (desktop-recover-flag-clean-exit)
-   (save-buffers-kill-terminal)
-   )
 
 ;; --------
 ;; desktop-recover.el save primitives (all other "saves" use these internally)
