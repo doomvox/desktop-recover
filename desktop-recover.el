@@ -77,39 +77,36 @@ emacs\).  This package, \"desktop-recover.el\", works with
 \(e.g. for crash recovery, for people working over flaky network
 connections\).  See `desktop-recover-toc-doc'.")
 
-;; it's also likely that this can
-;; be used with project-root to implement project-specific
-;; desktops.
+;; it's also likely that this can be used with project-root to
+;; implement project-specific desktops.
 
 (defvar desktop-recover-philosophy-doc ""
-  "In many respects desktop-recover.el is simpler than desktop.el.
-While desktop-recover.el uses desktop.el internally to save
-the state of the emacs \"desktop\", it very carefully
-overrides or ignores some features of desktop.el.  By
-itself, desktop.el is very cautious about keeping desktop files
-locked, so that it can warn the user if it looks like two
-different emacs instances are trying to use the same file.
-It also dynamically searches likely locations to find a
-desktop file, and it can be difficult to over-ride that
+  "In many respects desktop-recover.el works more simply than desktop.el.
+While desktop-recover.el uses desktop.el internally to save the
+state of the emacs \"desktop\", it very carefully overrides or
+ignores some features. By itself, desktop.el is very cautious
+about keeping desktop files locked, so that it can warn the user
+if it looks like two different emacs instances are trying to use
+the same file.  It also dynamically searches likely locations to
+find a desktop file, and it makes it hard to override that
 behavior (e.g. just setting the `desktop-dirname' variable
-doesn't always work).  This package, desktop-recover.el takes
-a somewhat different approach: the presumption is that there is
+doesn't always work).  This package, desktop-recover.el takes a
+somewhat different approach: the presumption is that there is
 nothing critical about saving desktop state; it's just a
 convenience feature, and so there's nothing important enough
-about it to want to bother the user with confirmation.
-The desktop-recover save primitives such as \\[desktop-recover-force-save]
-simply ignore the desktop.el locking system.\n
-Also desktop-recover.el uses a much simpler directory search:
-it has a single variable that can be set to tell it where to
-save to: `desktop-recover-location'.  This defaults to the value
-of `user-emacs-directory', which is typically \"~/.emacs.d\".  To
+about it to want to bother the user with confirmation.  The
+basic desktop-recover save primitive is \\[desktop-recover-force-save]:
+it just ignores any desktop.el locks.\n
+Also desktop-recover.el uses a much simpler directory search: it
+has a single variable that can be set to tell it where to save
+to: `desktop-recover-location'.  This defaults to the value of
+`user-emacs-directory', which is typically \"~/.emacs.d\".  To
 get desktop.el's dynamically determined `desktop-dirname'
 behavior, `desktop-recover-location' can be set to nil,\n
 In order to supress saves, desktop.el code sets the
-`desktop-dirname' to nil.  In contrast, the desktop-recover.el
-uses the variable `desktop-recover-suppress-save' to override
-any attempt at using the save primitives (i.e.
-\\[desktop-recover-force-save]).\n
+`desktop-dirname' to nil, but in contrast, the desktop-recover.el
+has the variable `desktop-recover-suppress-save', and also the
+function \\[desktop-recover-stop-automatic-saves].\n
 See `desktop-recover-toc-doc'.")
 
 (defvar desktop-recover-dangling-buffers-doc ""
@@ -999,8 +996,6 @@ Will not turn this mark on unless there really is a newer auto-save file."
                   (t
                    desktop-recover-unmarker)
                   ))
-
-      ;; TODO what other coloring to use?
       (let ((visible-path path)
             (visible-name name)
             )
