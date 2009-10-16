@@ -28,7 +28,14 @@
 ;;  let's the user choose which buffers will be restored.
 
 ;; Put this file into your load-path and the following into your ~/.emacs:
-;;   (require 'desktop-recover)
+;;  (require 'desktop-recover)
+;;  ;; optionallly:
+;;  (setq desktop-recover-location
+;;     (desktop-recover-fixdir "$HOME/.emacs.d/")) ;; ~/.emacs.d is the default
+;;  ;; bind a new exit command, so that we can tell if exit was clean.
+;;  (define-key ctl-x-map "\C-c" 'desktop-recover-save-buffers-kill-terminal)
+;;  ;; And this brings up the interactive buffer restore menu
+;;  (desktop-recover-interactive)
 
 ;;; Code:
 
@@ -197,6 +204,18 @@ Note: this flag is respected by desktop-recover.el code, not desktop.el.")
 (defvar desktop-buffer-ok-count)
 (defvar desktop-buffer-fail-count)
 
+(defun desktop-recover-setup ()
+  "The usual desktop-recover set-up operations."
+  ;; Turning desktop.el off (we use it indirectly)
+  (desktop-save-mode -1)
+  ;; This sounds good, but does it even do anything?
+  (setq desktop-load-locked-desktop t)
+  ;; Re-binding, so that we can tell if exit was clean.
+  (define-key ctl-x-map "\C-c" 'desktop-recover-save-buffers-kill-terminal)
+  ;; Brings up the interactive buffer restore menu
+  (desktop-recover-interactive)
+  )
+
 ;;=======
 ;; routines common to save/read operations
 
@@ -300,8 +319,6 @@ This is intended to be bound to the usual keybinding for exiting emacs."
   (save-buffers-kill-terminal)
   )
 
-;; TODO ideally: break-out a var with a list of major-modes to be skipped.
-;;      but skipped *when*?  There are *three stages* where they can be "skipped".
 (defun desktop-recover-save-with-danglers ()
   "Save desktop preserving buffers that have no associated files.
 Works by saving these danglers to a standard tmp directory, then
@@ -382,6 +399,8 @@ Returns a list of buffer objects.  Note that 'ordinary' buffers include
                         (string= major-mode "shell-mode")
                         (string= major-mode "eshell-mode")
                         (string= major-mode "gud-mode")))
+                  ;; Skip the desktop file itself
+                  (not (string= file-nameo (desktop-recover-file-path)))
                   )
                  (push buffy output-list)
                  )
@@ -483,7 +502,9 @@ Closes all other windows except for the current window and the newly created one
 ;; I want to deal with each file conditionally, so I need to parse it myself
 (defun desktop-recover-interactive (&optional dirname)
   "Read the .emacs-desktop file, bring up menu to approve buffer restoration."
-  (interactive) ;; maybe: interactive D?
+  (interactive "Dload desktop file from:")
+  (desktop-save-mode -1) ;; Turning desktop.el off (we'll use it indirectly)
+  (setq desktop-load-locked-desktop t) ;; Sounds good. Does it do anything?
   (let* ((desktop-file (desktop-recover-file-path dirname))
          ;; an .emacs-desktop file is in sections labeled like so:
          (global-section-marker ";; Global section")
@@ -497,7 +518,7 @@ Closes all other windows except for the current window and the newly created one
          (buffer-section "")
          (desktop-list)  ;; list of lists, one row for each desktop buffer
          )
-    (cond (desktop-file
+    (cond ((file-exists-p desktop-file)
            (find-file desktop-file)
            ;; parse into global and buffer sections
            ;; TODO also need to check the file format version: warn if it's wrong.
@@ -520,7 +541,10 @@ Closes all other windows except for the current window and the newly created one
                  (desktop-parse-buffer-section buffer-section))
            ;; display the desktop-list in an interactive selection buffer
            (desktop-recover-show-menu desktop-list)
-           ))
+           )
+          (t
+           (desktop-recover-do-saves-automatically))
+          )
     ))
 
 (defun desktop-parse-buffer-section (buffer-section)
@@ -637,6 +661,106 @@ conversion from string to list first."
 ;; The return key is the "do-it" that accepts the displayed settings,
 ;; and the "m" and "u" keys control whether the current line is set
 
+(defgroup desktop-recover-faces nil
+  "Typefaces used in the interactive desktop-recover menu."
+  :group 'desktop-recover
+  :group 'faces)
+
+(defface desktop-recover-directory-face
+  '((((class color)
+      (background light))
+     (:foreground "Navy" :bold t))
+    (((class color)
+      (background dark))
+     (:foreground "LightBlue" :bold t))
+    (t
+     (:bold t)))
+  "Face used for displaying dired buffer entires in desktop-recover menu."
+  :group 'desktop-recover-faces)
+
+(defface desktop-recover-heading-face
+  '((((class color)
+      (background light))
+     (:foreground "dark goldenrod"))
+    (((class color)
+      (background dark))
+     (:foreground "light goldenrod")))
+  "Face used for displaying the heading of the desktop-recover menu."
+  :group 'desktop-recover-faces)
+
+
+(defface desktop-recover-perl-face
+  '((((class color)
+      (background light))
+     (:foreground "olive drab"))
+    (((class color)
+      (background dark))
+     (:foreground "light green")))
+  "Face used for displaying perl buffer entries in the desktop-recover menu."
+  :group 'desktop-recover-faces)
+
+(defface desktop-recover-sh-face
+  '((((class color)
+      (background light))
+     (:foreground "dark orchid"))
+    (((class color)
+      (background dark))
+     (:foreground "orchid")))
+  "Face used for displaying sh buffer entries in the desktop-recover menu."
+  :group 'desktop-recover-faces)
+
+
+(defface desktop-recover-a-to-d-face
+  '((((class color)
+      (background light))
+     (:foreground "LavenderBlush4"))
+    (((class color)
+      (background dark))
+     (:foreground "LavenderBlush1")))
+  "Face used for displaying sh buffer entries in the desktop-recover menu."
+  :group 'desktop-recover-faces)
+
+
+(defface desktop-recover-e-to-j-face
+  '((((class color)
+      (background light))
+     (:foreground "maroon4"))
+    (((class color)
+      (background dark))
+     (:foreground "maroon1")))
+  "Face used for displaying sh buffer entries in the desktop-recover menu."
+  :group 'desktop-recover-faces)
+
+(defface desktop-recover-k-to-q-face
+  '((((class color)
+      (background light))
+     (:foreground "RoyalBlue4"))
+    (((class color)
+      (background dark))
+     (:foreground "RoyalBlue1")))
+  "Face used for displaying sh buffer entries in the desktop-recover menu."
+  :group 'desktop-recover-faces)
+
+(defface desktop-recover-r-to-s-face
+  '((((class color)
+      (background light))
+     (:foreground "aquamarine4"))
+    (((class color)
+      (background dark))
+     (:foreground "aquamarine1")))
+  "Face used for displaying sh buffer entries in the desktop-recover menu."
+  :group 'desktop-recover-faces)
+
+(defface desktop-recover-t-to-z-face
+  '((((class color)
+      (background light))
+     (:foreground "PaleVioletRed4"))
+    (((class color)
+      (background dark))
+     (:foreground "PaleVioletRed1")))
+  "Face used for displaying sh buffer entries in the desktop-recover menu."
+  :group 'desktop-recover-faces)
+
 (defvar desktop-recover-marker "*"
   "Symbol used to show a buffer will be reloaded \(typically \"*\"\).")
 
@@ -718,10 +842,10 @@ with auto-save file recovery, if that's indicated."
           ;; (set-buffer recover-list-buffer) ;; do you *trust* save-excursion?
           (forward-line 1)
           (<= (line-number-at-pos) line-count))) ;; end while-progn
-    ;; after doing a recovery, must clean-up so that this can be used next time
-    (desktop-recover-reset-clean-exit-flag)
-    ;; bring current-name/current-path to the fore, before doing a (list-buffers) ;; TODO test this
-    (find-file current-path)
+    (desktop-recover-do-saves-automatically)
+    ;; bring current-path to the fore, then show (list-buffers)
+    (if current-path
+        (find-file current-path))
     (list-buffers)
     ))
 
@@ -777,9 +901,15 @@ These are buffers that existed when the last desktop save was done."
     (setq buffer-read-only nil)
     (delete-region (point-min) (point-max))
     (insert menu-contents)
+    (forward-line 1)
     (desktop-recover-mode)
     (setq buffer-read-only 't)
-  ))
+  )
+  ;; after doing a recovery, must clean-up so that we can detect clean exits next time
+  (desktop-recover-reset-clean-exit-flag)
+  ;; make sure auto desktop saves don't happen until after recovery.
+  (desktop-recover-stop-automatic-saves)
+  )
 
 (defun desktop-recover-toggle-hash ()
   "Toggle the auto-save \(\"#\"\) marker for the current line.
@@ -819,9 +949,7 @@ Will not turn this mark on unless there really is a newer auto-save file."
              (setq status desktop-recover-auto-save-marker)
              (move-beginning-of-line 1)
              (put-text-property (point) (1+ (point)) 'auto-save status)
-             )
-            ;; TODO no need for a "t" alternative?
-            )
+             ))
       (setq overwrite-mode nil)
       (setq buffer-read-only 't)
       )))
@@ -839,12 +967,22 @@ Will not turn this mark on unless there really is a newer auto-save file."
         (unmarker desktop-recover-unmarker) ;; " "
         (auto-save-mark desktop-recover-auto-save-marker) ;; "#"
         (line "")
-        (menu-contents "")
         ;; (line-fmt " %1s %-33s%-42s %1s")
         (line-fmt (desktop-recover-menu-format desktop-list))
         (marker-field)
         (auto-save-field)
+        (hint-mess (concat
+                    "To open indicated buffers: RETURN. "
+                    "Mark: \"*\" Unmark: \"u\" "
+                    "Toggle auto-save: \"#\"" "\n"))
+        (menu-contents "")
         )
+    ;; colorize the heading line
+    (put-text-property 0 (length hint-mess)
+                       'face 'desktop-recover-heading-face
+                       hint-mess)
+    (setq menu-contents hint-mess)
+    ;; TODO need a controllable way of sorting this list...
     (dolist (record desktop-list)
       ;; unpack the record
       (setq name     (nth 0 record))
@@ -863,17 +1001,98 @@ Will not turn this mark on unless there really is a newer auto-save file."
                   (t
                    desktop-recover-unmarker)
                   ))
-      (setq line (format
-                  line-fmt
-                  marker-field
-                  auto-save-field
-                  name
-                  path
-                  ))
+
+      ;; TODO what other coloring to use?
+      (let ((visible-path path)
+            (visible-name name)
+            )
+        (cond (;; looks like a directory
+               (string= mode "dired-mode")
+               (setq visible-path
+                     (replace-regexp-in-string "/$" "" visible-path))
+               (put-text-property 0 (length visible-path)
+                                  'face 'desktop-recover-directory-face
+                                  visible-path)
+               (put-text-property 0 (length visible-name)
+                                  'face 'desktop-recover-directory-face
+                                  visible-name)
+               )
+              (t ;; not a directory
+               (setq visible-path (file-name-directory path))
+               (cond ((string-match "^[c]*perl-mode$" mode)
+                      (put-text-property 0 (length visible-path)
+                                         'face 'desktop-recover-perl-face
+                                         visible-path)
+                      (put-text-property 0 (length visible-name)
+                                         'face 'desktop-recover-perl-face
+                                         visible-name)
+                      )
+                     ((string= mode "sh-mode")
+                      (put-text-property 0 (length visible-path)
+                                         'face 'desktop-recover-sh-face
+                                         visible-path)
+                      (put-text-property 0 (length visible-name)
+                                         'face 'desktop-recover-sh-face
+                                         visible-name)
+                      )
+                     ((string-match "^[a-d]" mode)
+                      (put-text-property 0 (length visible-path)
+                                         'face 'desktop-recover-a-to-d-face
+                                         visible-path)
+                      (put-text-property 0 (length visible-name)
+                                         'face 'desktop-recover-a-to-d-face
+                                         visible-name)
+                      )
+                     ((string-match "^[e-j]" mode)
+                      (put-text-property 0 (length visible-path)
+                                         'face 'desktop-recover-e-to-j-face
+                                         visible-path)
+                      (put-text-property 0 (length visible-name)
+                                         'face 'desktop-recover-e-to-j-face
+                                         visible-name)
+                      )
+                     ((string-match "^[k-q]" mode)
+                      (put-text-property 0 (length visible-path)
+                                         'face 'desktop-recover-k-to-q-face
+                                         visible-path)
+                      (put-text-property 0 (length visible-name)
+                                         'face 'desktop-recover-k-to-q-face
+                                         visible-name)
+                      )
+
+                     ((string-match "^[r-s]" mode)
+                      (put-text-property 0 (length visible-path)
+                                         'face 'desktop-recover-r-to-s-face
+                                         visible-path)
+                      (put-text-property 0 (length visible-name)
+                                         'face 'desktop-recover-r-to-s-face
+                                         visible-name)
+                      )
+
+                     ((string-match "^[t-z]" mode)
+                      (put-text-property 0 (length visible-path)
+                                         'face 'desktop-recover-t-to-z-face
+                                         visible-path)
+                      (put-text-property 0 (length visible-name)
+                                         'face 'desktop-recover-t-to-z-face
+                                         visible-name)
+                      )
+                     )
+               ))
+        (setq visible-path
+              (replace-regexp-in-string
+               (concat "^" (getenv "HOME"))
+               "~" visible-path))
+        (setq line (format
+                    line-fmt
+                    marker-field
+                    auto-save-field
+                    visible-name
+                    visible-path
+                    )))
       ;; saving the dcb code block out-of-sight, attached to first character
       (put-text-property 0 1 'dcb dcb-code line)
-      ;;
-      ;; for convenience, preserving the visible fields also
+      ;; preserving all the visible fields also
       (put-text-property 0 1 'name name line)
       (put-text-property 0 1 'path path line)
       (put-text-property 0 1 'mode mode line)
