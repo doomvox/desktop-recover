@@ -810,8 +810,8 @@ Will not turn this mark on unless there really is a newer auto-save file."
             ((and
               (string= status desktop-recover-unmarker)
               (desktop-recover-newer-auto-save path))
-             ;; step forward to hash marker field (no easy way to avoid hardcoding)
-             (forward-char 4)
+             ;; step to hash marker field (no easy way to avoid hardcoding)
+             (forward-char 3)
              ;; replace with desktop-recover-auto-save-marker
              (delete-char 1)
              (insert desktop-recover-auto-save-marker)
