@@ -659,6 +659,7 @@ conversion from string to list first."
 (define-key desktop-recover-mode-map "n"    'next-line)
 (define-key desktop-recover-mode-map "p"    'previous-line)
 (define-key desktop-recover-mode-map "*"    'desktop-recover-mark-move-down)
+(define-key desktop-recover-mode-map "%"    'desktop-recover-toggle-hash-move-down)
 
 (defun desktop-recover-do-it ()
   "Accept the current settings of the restore menu buffer.
@@ -821,6 +822,12 @@ Will not turn this mark on unless there really is a newer auto-save file."
       (setq overwrite-mode nil)
       (setq buffer-read-only 't)
       )))
+
+(defun desktop-recover-toggle-hash-move-down ()
+  "Set marker on the current line, move down one."
+  (interactive)
+  (desktop-recover-toggle-hash)
+  (forward-line 1))
 
 (defun desktop-recover-build-menu-contents (desktop-list)
   "Builds the menu text from the DESKTOP-LIST data."
