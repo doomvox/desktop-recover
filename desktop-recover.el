@@ -719,11 +719,14 @@ with auto-save file recovery, if that's indicated."
           (<= (line-number-at-pos) line-count))) ;; end while-progn
     ;; after doing a recovery, must clean-up so that this can be used next time
     (desktop-recover-reset-clean-exit-flag)
-    ;; TODO bring current-name/current-path to the fore, and do a (list-buffers)
+    ;; bring current-name/current-path to the fore, before doing a (list-buffers) ;; TODO test this
+    (find-file current-path)
+    (list-buffers)
     ))
 
 (defun desktop-recover-mark ()
   "Set the marker for the current line: add leading asterix."
+  ;; TODO hard to avoid hardcoding column 2 presumption, right?
   (interactive)
   (save-excursion
   (setq buffer-read-only nil)
@@ -737,6 +740,7 @@ with auto-save file recovery, if that's indicated."
 
 (defun desktop-recover-unmark ()
   "Unset the marker for the current line: remove leading asterix."
+  ;; TODO better to search for the asterix, no?  This assumes it's in col 2.
   (interactive)
   (save-excursion
   (setq buffer-read-only nil)
@@ -776,6 +780,62 @@ These are buffers that existed when the last desktop save was done."
     (setq buffer-read-only 't)
   ))
 
+(defun desktop-recover-unhash ()
+  "Unset the auto-save \(hash\) marker for the current line."
+  (interactive)
+  (save-excursion
+    (setq buffer-read-only nil)
+    (move-beginning-of-line 1)
+    (let* ((auto-save-status (eval (get-char-property (point) 'auto-save)))
+           )
+      (cond ((string= auto-save-status desktop-recover-auto-save-marker)
+             ;; search for hash mark
+             (search-forward desktop-recover-auto-save-marker)
+             ;; replace with desktop-recover-unmarker
+             (delete-char 1)
+             (insert desktop-recover-unmarker)
+             ;; modify text property
+             (setq auto-save-status desktop-recover-unmarker)
+             (put-text-property 0 1 'auto-save auto-save-status)
+             ))
+      (setq overwrite-mode nil)
+      (setq buffer-read-only 't)
+      )))
+
+(defun desktop-recover-set-hash ()
+  "Set the auto-save \(hash\) marker for the current line.
+But only if there's a newer auto-save file."
+  (interactive)
+  (save-excursion
+    (setq buffer-read-only nil)
+    (move-beginning-of-line 1)
+    (let* (
+           ;; unpacking info stashed in 1st char properties
+           (auto-save-status (eval (get-char-property (point) 'auto-save)))
+           ;; (dcb-code  (eval (get-char-property (point) 'dcb)))
+           ;; (mode (eval (get-char-property (point) 'mode)))
+           (name (eval (get-char-property (point) 'name)))
+           (path (eval (get-char-property (point) 'path)))
+           )
+
+      (cond ((and
+              (string= auto-save-status desktop-recover-unmarker)
+              (desktop-recover-newer-auto-save path))
+             ;; step forward to hash marker field (no easy way to avoid hardcoding)
+             (forward-char 4)
+             ;; replace with desktop-recover-auto-save-marker
+             (delete-char 1)
+             (insert desktop-recover-auto-save-marker)
+             ;; modify text property
+             (setq auto-save-status desktop-recover-auto-save-marker)
+             (put-text-property 0 1 'auto-save auto-save-status)
+             ))
+      (setq overwrite-mode nil)
+      (setq buffer-read-only 't)
+      )))
+
+
+
 (defun desktop-recover-build-menu-contents (desktop-list)
   "Builds the menu text from the DESKTOP-LIST data."
   (let* ((name) (path) (mode) (dcb-code)
@@ -791,17 +851,10 @@ These are buffers that existed when the last desktop save was done."
         )
     (dolist (record desktop-list)
       ;; unpack the record
-
-;; TODO NEXT experimental
       (setq name     (nth 0 record))
       (setq path     (nth 1 record))
       (setq mode     (nth 2 record))
       (setq dcb-code (nth 3 record))
-;;       (setq name     (eval (nth 0 record)))
-;;       (setq path     (eval (nth 1 record)))
-;;       (setq mode     (eval (nth 2 record)))
-;;       (setq dcb-code (eval (nth 3 record)))
-
       (setq marker-field
             (cond ((desktop-recover-by-default-p record)
                    desktop-recover-marker)
@@ -840,7 +893,7 @@ These are buffers that existed when the last desktop save was done."
 (defun desktop-recover-menu-format (desktop-list)
   "Choose the menu format, balancing between lengths of name and path."
   (let* ((name) (path) (width-name) (width-path)
-         (total-width 80) ;; TODO break-out as var
+         (total-width (frame-width))
          (max-name 0)
          ;; (max-path 0)    ;; Not making any use of max-path at present
          (line-fmt "")
@@ -853,7 +906,7 @@ These are buffers that existed when the last desktop save was done."
       ;; (if (> (length path) max-path)
       ;; (setq max-path (length path)))
         )
-    ;; Goal: (line-fmt " %1s %-33s%-42s %1s")
+    ;; Goal: (line-fmt " %1s %1s %-33s%-42s")
     (setq width-name (+ max-name 2))
     (setq width-path (- total-width 6 width-name))
     (setq line-fmt
