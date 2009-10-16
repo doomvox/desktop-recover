@@ -1,5 +1,5 @@
 ;;; desktop-recover-setup.el --
-;; Copyright 2007 Joseph Brenner
+;; Copyright 2009 Joseph Brenner
 ;;
 ;; Author: doom@kzsu.stanford.edu
 
@@ -35,24 +35,15 @@
 (eval-when-compile
   (require 'cl))
 
-(require 'desktop)
-(require 'desktop-recover)
+(load-library "desktop")
+(load-library "desktop-recover")
 
-;; We wil try to use this instead of desktop.el's confusing search process.
+;; This is optional now (what's shown is the default setting)
 (setq desktop-recover-location
       (desktop-recover-fixdir "$HOME/.emacs.d/"))
 
-;; Turning desktop.el off (we'll use it indirectly)
-(desktop-save-mode -1)
-; Do you hate pop-up dialog boxes as much as I do?  TODO Maybe put this in luddite mode?
-(setq use-dialog-box nil)
-(setq desktop-load-locked-desktop t)
-(desktop-recover-interactive)
-
-;; TODO think carefully about when you want to do this... I'm
-;; seeing mysterious lock-up problems, different code fighting for the minibuffer,
-;; with no way out but xkill.
-(desktop-recover-do-saves-automatically)
-
-;; So that we can tell if exit was clean.
+;; bind a new exit command, so that we can tell if exit was clean.
 (define-key ctl-x-map "\C-c" 'desktop-recover-save-buffers-kill-terminal)
+
+;; And this brings up the interactive buffer restore menu
+  (desktop-recover-interactive)
