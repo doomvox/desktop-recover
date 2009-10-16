@@ -266,13 +266,12 @@ emacs died."
             (desktop-recover-fixdir
              desktop-recover-tmp-dir)
             desktop-recover-clean-exit-flag))
-         ;; set these to override defaults
-         (output-buffer nil)
-         (error-buffer  nil)
-         (cmd (format "touch %s" clean-exit-flag-file))
          )
-    (shell-command cmd output-buffer error-buffer)
-    ))
+    (save-excursion
+      (find-file clean-exit-flag-file)
+      (insert " ")
+      (save-buffer)
+      )))
 
 (defun desktop-recover-reset-clean-exit-flag ()
   "Erase the file used to flag that emacs exited cleanly."
@@ -652,7 +651,6 @@ conversion from string to list first."
          )
     first-item))
 
-
 ;;========
 ;; interactive menu for selecting what to recover
 
@@ -681,13 +679,12 @@ conversion from string to list first."
 (defface desktop-recover-heading-face
   '((((class color)
       (background light))
-     (:foreground "dark goldenrod"))
+     (:foreground "black"))
     (((class color)
       (background dark))
-     (:foreground "light goldenrod")))
+     (:foreground "white")))
   "Face used for displaying the heading of the desktop-recover menu."
   :group 'desktop-recover-faces)
-
 
 (defface desktop-recover-perl-face
   '((((class color)
@@ -709,7 +706,6 @@ conversion from string to list first."
   "Face used for displaying sh buffer entries in the desktop-recover menu."
   :group 'desktop-recover-faces)
 
-
 (defface desktop-recover-a-to-d-face
   '((((class color)
       (background light))
@@ -719,7 +715,6 @@ conversion from string to list first."
      (:foreground "LavenderBlush1")))
   "Face used for displaying sh buffer entries in the desktop-recover menu."
   :group 'desktop-recover-faces)
-
 
 (defface desktop-recover-e-to-j-face
   '((((class color)
@@ -1231,6 +1226,27 @@ It does almost precisely the same thing, but it shuts up about it."
 ;;=======
 ;; boneyard
 
+;; re-wrote this to avoid shelling out to "touch"
+(defun desktop-recover-flag-clean-exit-touchy ()
+  "Create the file that indicates that we're doing a clean exit.
+Actually, it flags the fact that we *tried* to exit cleanly, since
+there's no easy way to check if all saves were completed before
+emacs died."
+  (interactive)
+  (let* ((clean-exit-flag-file
+           (concat
+            (desktop-recover-fixdir
+             desktop-recover-tmp-dir)
+            desktop-recover-clean-exit-flag))
+         ;; set these to override defaults
+         (output-buffer nil)
+         (error-buffer  nil)
+         (cmd (format "touch %s" clean-exit-flag-file))
+         )
+    (shell-command cmd output-buffer error-buffer)
+    ))
+
+
   (defun desktop-recover-buffer-exists-p (name)
     "Was a buffer opened for file of the given NAME?
 Returns nil if a buffer of the right name is not found,
@@ -1447,28 +1463,6 @@ Returns a list of buffer objects."
       (deactivate-mark)
   output-list)))
 
-
-;; no like style on this one
-(defun desktop-recover-clean-string-old (string)
-  "Strip leading/trailing whitespace, and also, leading single-quotes."
-  (let ((strip-lead-space-pattern "^[ \t]*\\([^ \t]*.*\\)")
-        (strip-trail-space-pattern "\\(.*?\\)[ \t]*$")
-        (strip-lead-apostrophe-pattern "^'*\\(.*\\)")
-        (temp1)
-        (temp2)
-        (clean)
-        )
-    (if
-        (string-match strip-lead-space-pattern string)
-        (setq temp1 (match-string 1 string))
-      (setq temp1 string))
-    (if
-        (string-match strip-trail-space-pattern temp1)
-        (setq temp2 (match-string 1 temp1))
-      (setq temp2 temp1))
-    (string-match strip-lead-apostrophe-pattern temp2)
-    (setq clean (match-string 1 temp2))
-    clean))
 
 ;; ---------
 ;; old desktop-save routines
