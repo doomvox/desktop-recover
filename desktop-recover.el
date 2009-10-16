@@ -659,7 +659,7 @@ conversion from string to list first."
 (define-key desktop-recover-mode-map "n"    'next-line)
 (define-key desktop-recover-mode-map "p"    'previous-line)
 (define-key desktop-recover-mode-map "*"    'desktop-recover-mark-move-down)
-(define-key desktop-recover-mode-map "%"    'desktop-recover-toggle-hash-move-down)
+(define-key desktop-recover-mode-map "#"    'desktop-recover-toggle-hash-move-down)
 
 (defun desktop-recover-do-it ()
   "Accept the current settings of the restore menu buffer.
@@ -782,31 +782,33 @@ These are buffers that existed when the last desktop save was done."
   ))
 
 (defun desktop-recover-toggle-hash ()
-  "Toggle the auto-save \(hash\) marker for the current line.
+  "Toggle the auto-save \(\"#\"\) marker for the current line.
 Will not turn this mark on unless there really is a newer auto-save file."
   (interactive)
   (save-excursion
     (setq buffer-read-only nil)
     (move-beginning-of-line 1)
     (let* (;; unpacking info stashed in 1st char properties
-           (auto-save-status (eval (get-char-property (point) 'auto-save)))
+           (status (eval (get-char-property (point) 'auto-save)))
            ;; (dcb-code  (eval (get-char-property (point) 'dcb)))
            ;; (mode (eval (get-char-property (point) 'mode)))
            (name (eval (get-char-property (point) 'name)))
            (path (eval (get-char-property (point) 'path)))
            )
-      (cond ((string= auto-save-status desktop-recover-auto-save-marker)
+      (cond ((string= status desktop-recover-auto-save-marker)
              ;; search for hash mark
              (search-forward desktop-recover-auto-save-marker)
+             (backward-char 1)
              ;; replace with desktop-recover-unmarker
              (delete-char 1)
              (insert desktop-recover-unmarker)
              ;; modify text property
-             (setq auto-save-status desktop-recover-unmarker)
-             (put-text-property 0 1 'auto-save auto-save-status)
+             (setq status desktop-recover-unmarker)
+             (move-beginning-of-line 1)
+             (put-text-property (point) (1+ (point)) 'auto-save status)
              )
             ((and
-              (string= auto-save-status desktop-recover-unmarker)
+              (string= status desktop-recover-unmarker)
               (desktop-recover-newer-auto-save path))
              ;; step forward to hash marker field (no easy way to avoid hardcoding)
              (forward-char 4)
@@ -814,8 +816,9 @@ Will not turn this mark on unless there really is a newer auto-save file."
              (delete-char 1)
              (insert desktop-recover-auto-save-marker)
              ;; modify text property
-             (setq auto-save-status desktop-recover-auto-save-marker)
-             (put-text-property 0 1 'auto-save auto-save-no)
+             (setq status desktop-recover-auto-save-marker)
+             (move-beginning-of-line 1)
+             (put-text-property (point) (1+ (point)) 'auto-save status)
              )
             ;; TODO no need for a "t" alternative?
             )
