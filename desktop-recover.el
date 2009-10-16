@@ -780,13 +780,19 @@ These are buffers that existed when the last desktop save was done."
     (setq buffer-read-only 't)
   ))
 
-(defun desktop-recover-unhash ()
-  "Unset the auto-save \(hash\) marker for the current line."
+(defun desktop-recover-toggle-hash ()
+  "Toggle the auto-save \(hash\) marker for the current line.
+Will not turn this mark on unless there really is a newer auto-save file."
   (interactive)
   (save-excursion
     (setq buffer-read-only nil)
     (move-beginning-of-line 1)
-    (let* ((auto-save-status (eval (get-char-property (point) 'auto-save)))
+    (let* (;; unpacking info stashed in 1st char properties
+           (auto-save-status (eval (get-char-property (point) 'auto-save)))
+           ;; (dcb-code  (eval (get-char-property (point) 'dcb)))
+           ;; (mode (eval (get-char-property (point) 'mode)))
+           (name (eval (get-char-property (point) 'name)))
+           (path (eval (get-char-property (point) 'path)))
            )
       (cond ((string= auto-save-status desktop-recover-auto-save-marker)
              ;; search for hash mark
@@ -797,28 +803,8 @@ These are buffers that existed when the last desktop save was done."
              ;; modify text property
              (setq auto-save-status desktop-recover-unmarker)
              (put-text-property 0 1 'auto-save auto-save-status)
-             ))
-      (setq overwrite-mode nil)
-      (setq buffer-read-only 't)
-      )))
-
-(defun desktop-recover-set-hash ()
-  "Set the auto-save \(hash\) marker for the current line.
-But only if there's a newer auto-save file."
-  (interactive)
-  (save-excursion
-    (setq buffer-read-only nil)
-    (move-beginning-of-line 1)
-    (let* (
-           ;; unpacking info stashed in 1st char properties
-           (auto-save-status (eval (get-char-property (point) 'auto-save)))
-           ;; (dcb-code  (eval (get-char-property (point) 'dcb)))
-           ;; (mode (eval (get-char-property (point) 'mode)))
-           (name (eval (get-char-property (point) 'name)))
-           (path (eval (get-char-property (point) 'path)))
-           )
-
-      (cond ((and
+             )
+            ((and
               (string= auto-save-status desktop-recover-unmarker)
               (desktop-recover-newer-auto-save path))
              ;; step forward to hash marker field (no easy way to avoid hardcoding)
@@ -828,13 +814,13 @@ But only if there's a newer auto-save file."
              (insert desktop-recover-auto-save-marker)
              ;; modify text property
              (setq auto-save-status desktop-recover-auto-save-marker)
-             (put-text-property 0 1 'auto-save auto-save-status)
-             ))
+             (put-text-property 0 1 'auto-save auto-save-no)
+             )
+            ;; TODO no need for a "t" alternative?
+            )
       (setq overwrite-mode nil)
       (setq buffer-read-only 't)
       )))
-
-
 
 (defun desktop-recover-build-menu-contents (desktop-list)
   "Builds the menu text from the DESKTOP-LIST data."
