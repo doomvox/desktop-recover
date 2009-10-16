@@ -46,6 +46,9 @@
 (require 'desktop)
 (require 'thingatpt)
 
+(defconst desktop-recover-version "0.9"
+  "The version number of the installed desktop-recover.el package.")
+
 
 
 ;;======
