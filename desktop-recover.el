@@ -62,12 +62,12 @@ state of all the current buffers that are open at a given moment,
 except for the dynamic buffers \(usually named with a leading
 asterix\) and a few other odds and ends.  This is the terminology
 used by the package \"desktop.el\" \(already standard with GNU
-emacs\).  The package \"desktop-recover.el\" works with
-\"desktop.el\", using it for crash recovery purposes \(the sort
-of thing people working over flaky network connections have to
-deal with\).
-See `desktop-recover-toc-doc'.
-")  ;; it's also likely that this can
+emacs\).  This package, \"desktop-recover.el\", works with
+\"desktop.el\", using it for interactive recovery of emacs state
+\(e.g. for crash recovery, for people working over flaky network
+connections\).  See `desktop-recover-toc-doc'.")
+
+;; it's also likely that this can
 ;; be used with project-root to implement project-specific
 ;; desktops.
 
@@ -170,16 +170,16 @@ Defaults to `user-emacs-directory'.  Note: desktop.el has a
 `desktop-dirname' variable, but that can not be used reliably as
 a user setting, because the code changes it under some
 circumstances."
-  type:  'directory
-  group: desktop-recover
+  :type  'directory
+  :group 'desktop-recover
 )
 (put 'desktop-recover-location 'risky-local-variable t)
 
 (defcustom desktop-recover-tmp-dir
   (concat desktop-recover-location "desktop-recover-tmp")
   "Location where dangling buffers that have no associated files are saved."
-  type:  'directory
-  group: desktop-recover
+  :type  'directory
+  :group 'desktop-recover
 )
 (put 'desktop-recover-tmp-dir 'risky-local-variable t)
 
@@ -281,7 +281,6 @@ emacs died."
 
 ;;======================
 ;; saving desktop files (with dangler management)
-
 (defun desktop-recover-do-saves-automatically ()
   "Makes the desktop saved automatically using the auto-save-hook."
   (add-hook 'auto-save-hook 'desktop-recover-save-with-danglers))
@@ -705,34 +704,19 @@ with auto-save file recovery, if that's indicated."
                           )
                      ;; do it to it
                      (eval (read dcb-code))
-
-                     ;; covering a corner case: file was never saved, but
-                     ;; there is an auto-save file for it.
-                     ;;
-                     ;; buffer does not seem to have opened successfully
-                     (cond ((not (string= (buffer-name) name))
+                     (cond ((not (string-match "/$" path)) ;; not a directory
+                            ;; check for auto-save file, recover if indicated
                             (cond ((and
                                     (desktop-recover-newer-auto-save path)
                                     (string-match auto-save-pattern auto-save))
-                                   (find-file path)
-                                   ;; (recover-this-file)
-                                   (recover-file path)
+                                   (desktop-recover-recover-file path)
                                    ))
                             ))
-                     ;; looks like a regular file (not dired, etc),
-                     ;; recover auto-save, if that's indicated
-                     (let ((bfn (buffer-file-name)))
-                       (cond ((and
-                               bfn
-                               (string-match auto-save-pattern auto-save))
-                              ;;(recover-this-file)
-                              (recover-file path)
-                              )))
                      )))
-            )
+            ) ;; end save-excursion
           ;; (set-buffer recover-list-buffer) ;; do you *trust* save-excursion?
           (forward-line 1)
-          (<= (line-number-at-pos) line-count)))
+          (<= (line-number-at-pos) line-count))) ;; end while-progn
     ;; after doing a recovery, must clean-up so that this can be used next time
     (desktop-recover-reset-clean-exit-flag)
     ;; TODO bring current-name/current-path to the fore, and do a (list-buffers)
@@ -871,10 +855,10 @@ These are buffers that existed when the last desktop save was done."
         )
     ;; Goal: (line-fmt " %1s %-33s%-42s %1s")
     (setq width-name (+ max-name 2))
-    (setq width-path (- total-width 5 width-name))
+    (setq width-path (- total-width 6 width-name))
     (setq line-fmt
           (concat
-           " %1s%1s %-"
+           " %1s %1s %-"
            (number-to-string width-name)
            "s%-"
            (number-to-string width-path)
@@ -889,21 +873,22 @@ These are buffers that existed when the last desktop save was done."
 A file should not be re-loaded if was an automatically saved temporary
 buffer and emacs exited cleanly.  RECORD should be a list of
 name, path, mode and dcb-code."
-  (let* ((name) (path) (mode) (dcb-code)
-         (tmp-dir (desktop-recover-fixdir desktop-recover-tmp-dir))
-         (recover-p t) ;; return value
+  (let* ((tmp-dir (desktop-recover-fixdir desktop-recover-tmp-dir))
+         ;; unpack the record
+         (name     (nth 0 record))
+         (path     (nth 1 record))
+         (mode     (nth 2 record))
+         (dcb-code (nth 3 record))
+         ;; return value
+
+  ;; what kind of logic is this?
+         (recover-p
+          (cond ((and
+                  (string= (desktop-recover-fixdir path) tmp-dir)
+                  (desktop-recover-clean-exit-p))
+                 t)
+                (t nil)))
          )
-    ;; unpack the record
-    (setq name     (nth 0 record))
-    (setq path     (nth 1 record))
-    (setq mode     (nth 2 record))
-    (setq dcb-code (nth 3 record))
-;;    (message "the temp directory: %s" tmp-dir) ;; DEBUG
-    (cond ((and
-            (string= (desktop-recover-fixdir path) tmp-dir)
-            (desktop-recover-clean-exit-p))
-           (setq recover-p nil))
-          )
     recover-p))
 
 (defun desktop-recover-newer-auto-save (path)
@@ -920,7 +905,90 @@ name, path, mode and dcb-code."
     ))
 
 ;;=======
+;; recover-file *quietly*
+
+;; Sleazy cut-and paste of a routine from files.el, so that
+;; I can yank out the "Recover auto save file" question.
+(defun desktop-recover-recover-file (file)
+  "Visit file FILE, but get contents from its last auto-save file.
+This bears an amazing resemblence to recover-file from files.el.
+It does almost precisely the same thing, but it shuts up about it."
+  ;; Actually putting the file name in the minibuffer should be used
+  ;; only rarely.
+  ;; Not just because users often use the default.
+  (interactive "FRecover file: ")
+  (setq file (expand-file-name file))
+  (if (auto-save-file-name-p (file-name-nondirectory file))
+      (error "%s is an auto-save file" (abbreviate-file-name file)))
+  (let ((file-name (let ((buffer-file-name file))
+		     (make-auto-save-file-name))))
+    (cond ((if (file-exists-p file)
+	       (not (file-newer-than-file-p file-name file))
+	     (not (file-exists-p file-name)))
+	   (error "Auto-save file %s not current"
+		  (abbreviate-file-name file-name)))
+	  (t ;; desktop-recover always does this without question
+           (save-window-excursion
+	     (with-output-to-temp-buffer "*Directory*"
+	       (buffer-disable-undo standard-output)
+	       (save-excursion
+		 (let ((switches dired-listing-switches))
+		   (if (file-symlink-p file)
+		       (setq switches (concat switches "L")))
+		   (set-buffer standard-output)
+		   ;; Use insert-directory-safely, not insert-directory,
+		   ;; because these files might not exist.  In particular,
+		   ;; FILE might not exist if the auto-save file was for
+		   ;; a buffer that didn't visit a file, such as "*mail*".
+		   ;; The code in v20.x called `ls' directly, so we need
+		   ;; to emulate what `ls' did in that case.
+		   (insert-directory-safely file switches)
+		   (insert-directory-safely file-name switches))))
+	     ;; (yes-or-no-p (format "Recover auto save file %s? " file-name))
+             )
+	   (switch-to-buffer (find-file-noselect file t))
+	   (let ((inhibit-read-only t)
+		 ;; Keep the current buffer-file-coding-system.
+		 (coding-system buffer-file-coding-system)
+		 ;; Auto-saved file should be read with special coding.
+		 (coding-system-for-read 'auto-save-coding))
+	     (erase-buffer)
+	     (insert-file-contents file-name nil)
+	     (set-buffer-file-coding-system coding-system))
+	   (after-find-file nil nil t))
+	  ;; (t (error "Recover-file cancelled"))
+          )))
+
+
+;;=======
 ;; boneyard
+
+  (defun desktop-recover-buffer-exists-p (name)
+    "Was a buffer opened for file of the given NAME?
+Returns nil if a buffer of the right name is not found,
+or a list of all buffer names that match \(there can
+be multiple ones open, from different directories\)."
+    (let* ((pattern (concat "^" name "\\([|<]*\\|$\\)"))
+           (found
+            (desktop-recover-grep pattern
+                                  (mapcar 'buffer-name (buffer-list))))
+           )
+      (message "pattern: %s matched: %s" pattern found) ;; DEBUG
+      found
+      ))
+
+(defun desktop-recover-grep (pattern list)
+  "A simple implementation of perl's grep.
+Return a new list of elements from LIST that match PATTERN.
+LIST is presumed to be a list of strings."
+  (let ((case-fold-search nil)
+        (new-list () ))
+    (dolist (item list)
+      (if (string-match pattern item)
+          (setq new-list (cons item new-list))
+        ))
+    new-list))
+
 
 ;; TODO I don't understand what this was supposed to be for...
 (defun desktop-recover-force-save-in-desktop-dir ()
