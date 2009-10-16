@@ -293,11 +293,12 @@ emacs died."
   "For doing a \"clean\" exit.
 Essentially a wrapper around save-buffers-kill-terminal.
 This is intended to be bound to the usual keybinding for exiting emacs."
-   (desktop-recover-stop-automatic-saves)
-   (desktop-recover-save-with-danglers)
-   (desktop-recover-flag-clean-exit)
-   (save-buffers-kill-terminal)
-   )
+  (interactive)
+  (desktop-recover-stop-automatic-saves)
+  (desktop-recover-save-with-danglers)
+  (desktop-recover-flag-clean-exit)
+  (save-buffers-kill-terminal)
+  )
 
 ;; TODO ideally: break-out a var with a list of major-modes to be skipped.
 ;;      but skipped *when*?  There are *three stages* where they can be "skipped".
@@ -483,23 +484,23 @@ Closes all other windows except for the current window and the newly created one
 (defun desktop-recover-interactive (&optional dirname)
   "Read the .emacs-desktop file, bring up menu to approve buffer restoration."
   (interactive) ;; maybe: interactive D?
-  (let* ( (desktop-file (desktop-recover-file-path dirname))
-          ;; an .emacs-desktop file is in sections labeled like so:
-          (global-section-marker ";; Global section")
-          (buffer-section-marker ";; Buffer section")
-          ;; prepend ^ to make them regexps
-          (global-section-pattern
-            (concat "^" global-section-marker))
-          (buffer-section-pattern
-            (concat "^" buffer-section-marker))
-          (global-section "")
-          (buffer-section "")
-          (desktop-list)  ;; list of lists, one row for each desktop buffer
+  (let* ((desktop-file (desktop-recover-file-path dirname))
+         ;; an .emacs-desktop file is in sections labeled like so:
+         (global-section-marker ";; Global section")
+         (buffer-section-marker ";; Buffer section")
+         ;; prepend ^ to make them regexps
+         (global-section-pattern
+          (concat "^" global-section-marker))
+         (buffer-section-pattern
+          (concat "^" buffer-section-marker))
+         (global-section "")
+         (buffer-section "")
+         (desktop-list)  ;; list of lists, one row for each desktop buffer
          )
     (cond (desktop-file
            (find-file desktop-file)
            ;; parse into global and buffer sections
-           ;; TODO need to check the file format version, no?  Warn if it's wrong.
+           ;; TODO also need to check the file format version: warn if it's wrong.
            (goto-char (point-min))
            (re-search-forward global-section-pattern)
            (forward-line 1)
@@ -509,11 +510,11 @@ Closes all other windows except for the current window and the newly created one
              (previous-line 1)
              (move-end-of-line 1)
              (setq end (point))
-             (setq global-section (buffer-substring beg end)))
+             (setq global-section (buffer-substring-no-properties beg end)))
            (forward-line 2)
            (let* ((beg (point) )
                   (end (point-max)))
-             (setq buffer-section (buffer-substring beg end)))
+             (setq buffer-section (buffer-substring-no-properties beg end)))
            (eval (read global-section))
            (setq desktop-list
                  (desktop-parse-buffer-section buffer-section))
@@ -522,8 +523,6 @@ Closes all other windows except for the current window and the newly created one
            ))
     ))
 
-;; TODO BOOKMARK -- this is the earliest (and probably the best)
-;; stage at which data can be cleaned up.
 (defun desktop-parse-buffer-section (buffer-section)
   "Associate file system names with desktop-create-buffer code.
 Parses the 'buffer section' of a .emacs.desktop file (passed in
@@ -552,7 +551,8 @@ desktop-create-buffer call.  See \\[desktop-recover-desktop-list-doc]."
     ;; to have the list of complete function calls
     (setq dcb-list
           (mapcar (lambda (item)
-                    (concat dcb-string " " item))
+                    (concat dcb-string " "
+                            (substring-no-properties item)))
                   (split-string buffer-section dcb-pattern t)))
     (dolist (dcb-code dcb-list)
       ;; parse dcb-code as a list
@@ -793,14 +793,14 @@ These are buffers that existed when the last desktop save was done."
       ;; unpack the record
 
 ;; TODO NEXT experimental
-;;       (setq name     (nth 0 record))
-;;       (setq path     (nth 1 record))
-;;       (setq mode     (nth 2 record))
-;;       (setq dcb-code (nth 3 record))
-      (setq name     (eval (nth 0 record)))
-      (setq path     (eval (nth 1 record)))
-      (setq mode     (eval (nth 2 record)))
-      (setq dcb-code (eval (nth 3 record)))
+      (setq name     (nth 0 record))
+      (setq path     (nth 1 record))
+      (setq mode     (nth 2 record))
+      (setq dcb-code (nth 3 record))
+;;       (setq name     (eval (nth 0 record)))
+;;       (setq path     (eval (nth 1 record)))
+;;       (setq mode     (eval (nth 2 record)))
+;;       (setq dcb-code (eval (nth 3 record)))
 
       (setq marker-field
             (cond ((desktop-recover-by-default-p record)
@@ -876,18 +876,18 @@ name, path, mode and dcb-code."
   (let* ((tmp-dir (desktop-recover-fixdir desktop-recover-tmp-dir))
          ;; unpack the record
          (name     (nth 0 record))
-         (path     (nth 1 record))
+         (path     (nth 1 record)) ;; eval don't do trick.  properties prob? TODO
          (mode     (nth 2 record))
          (dcb-code (nth 3 record))
+         (location  (desktop-recover-fixdir (file-name-directory path)))
          ;; return value
-
-  ;; what kind of logic is this?
          (recover-p
-          (cond ((and
-                  (string= (desktop-recover-fixdir path) tmp-dir)
-                  (desktop-recover-clean-exit-p))
-                 t)
-                (t nil)))
+          (cond ((string= location tmp-dir) ;; this is a preserved dangler
+                 (cond ((desktop-recover-clean-exit-p)
+                        nil)
+                       (t
+                        t)))
+                (t t)))
          )
     recover-p))
 
