@@ -977,7 +977,6 @@ Will not turn this mark on unless there really is a newer auto-save file."
                        'face 'desktop-recover-heading-face
                        hint-mess)
     (setq menu-contents hint-mess)
-    ;; TODO need a controllable way of sorting this list...
     (dolist (record desktop-list)
       ;; unpack the record
       (setq name     (nth 0 record))
@@ -1003,22 +1002,16 @@ Will not turn this mark on unless there really is a newer auto-save file."
                (string= mode "dired-mode")
                (setq visible-path
                      (replace-regexp-in-string "/$" "" visible-path))
-               (put-text-property 0 (length visible-path)
-                                  'face 'desktop-recover-directory-face
-                                  visible-path)
-               (put-text-property 0 (length visible-name)
-                                  'face 'desktop-recover-directory-face
-                                  visible-name)
                )
               (t ;; not a directory
                (setq visible-path (file-name-directory path))
-               (setq visible-path (desktop-recover-choose-faces visible-path mode))
-               (setq visible-name (desktop-recover-choose-faces visible-name mode))
                ))
         (setq visible-path
               (replace-regexp-in-string
                (concat "^" (getenv "HOME"))
                "~" visible-path))
+        (setq visible-path (desktop-recover-choose-faces visible-path mode))
+        (setq visible-name (desktop-recover-choose-faces visible-name mode))
         (setq line (format
                     line-fmt
                     marker-field
@@ -1044,7 +1037,11 @@ Will not turn this mark on unless there really is a newer auto-save file."
 Some modes are special cases with particular faces associated
 with them, for the others, we look at the first character
 of the mode name, and use it to choose a more generic face."
-  (cond ((string-match "^[c]*perl-mode$" mode)
+  (cond ((string= mode "dired-mode")
+         (put-text-property 0 (length string)
+                            'face 'desktop-recover-directory-face
+                            string))
+        ((string-match "^[c]*perl-mode$" mode)
          (put-text-property 0 (length string)
                             'face 'desktop-recover-perl-face
                             string))
