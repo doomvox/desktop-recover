@@ -46,7 +46,7 @@
 (require 'desktop)
 (require 'thingatpt)
 
-(defconst desktop-recover-version "0.9"
+(defconst desktop-recover-version "0.91"
   "The version number of the installed desktop-recover.el package.")
 
 
@@ -709,10 +709,10 @@ conversion from string to list first."
 (defface desktop-recover-a-to-d-face
   '((((class color)
       (background light))
-     (:foreground "LavenderBlush4"))
+     (:foreground "dark slate blue"))
     (((class color)
       (background dark))
-     (:foreground "LavenderBlush1")))
+     (:foreground "light slate blue")))
   "Face used for displaying sh buffer entries in the desktop-recover menu."
   :group 'desktop-recover-faces)
 
@@ -1012,65 +1012,8 @@ Will not turn this mark on unless there really is a newer auto-save file."
                )
               (t ;; not a directory
                (setq visible-path (file-name-directory path))
-               (cond ((string-match "^[c]*perl-mode$" mode)
-                      (put-text-property 0 (length visible-path)
-                                         'face 'desktop-recover-perl-face
-                                         visible-path)
-                      (put-text-property 0 (length visible-name)
-                                         'face 'desktop-recover-perl-face
-                                         visible-name)
-                      )
-                     ((string= mode "sh-mode")
-                      (put-text-property 0 (length visible-path)
-                                         'face 'desktop-recover-sh-face
-                                         visible-path)
-                      (put-text-property 0 (length visible-name)
-                                         'face 'desktop-recover-sh-face
-                                         visible-name)
-                      )
-                     ((string-match "^[a-d]" mode)
-                      (put-text-property 0 (length visible-path)
-                                         'face 'desktop-recover-a-to-d-face
-                                         visible-path)
-                      (put-text-property 0 (length visible-name)
-                                         'face 'desktop-recover-a-to-d-face
-                                         visible-name)
-                      )
-                     ((string-match "^[e-j]" mode)
-                      (put-text-property 0 (length visible-path)
-                                         'face 'desktop-recover-e-to-j-face
-                                         visible-path)
-                      (put-text-property 0 (length visible-name)
-                                         'face 'desktop-recover-e-to-j-face
-                                         visible-name)
-                      )
-                     ((string-match "^[k-q]" mode)
-                      (put-text-property 0 (length visible-path)
-                                         'face 'desktop-recover-k-to-q-face
-                                         visible-path)
-                      (put-text-property 0 (length visible-name)
-                                         'face 'desktop-recover-k-to-q-face
-                                         visible-name)
-                      )
-
-                     ((string-match "^[r-s]" mode)
-                      (put-text-property 0 (length visible-path)
-                                         'face 'desktop-recover-r-to-s-face
-                                         visible-path)
-                      (put-text-property 0 (length visible-name)
-                                         'face 'desktop-recover-r-to-s-face
-                                         visible-name)
-                      )
-
-                     ((string-match "^[t-z]" mode)
-                      (put-text-property 0 (length visible-path)
-                                         'face 'desktop-recover-t-to-z-face
-                                         visible-path)
-                      (put-text-property 0 (length visible-name)
-                                         'face 'desktop-recover-t-to-z-face
-                                         visible-name)
-                      )
-                     )
+               (setq visible-path (desktop-recover-choose-faces visible-path mode))
+               (setq visible-name (desktop-recover-choose-faces visible-name mode))
                ))
         (setq visible-path
               (replace-regexp-in-string
@@ -1095,6 +1038,41 @@ Will not turn this mark on unless there really is a newer auto-save file."
             (concat menu-contents line "\n")
       ))
     menu-contents))
+
+(defun desktop-recover-choose-faces (string mode)
+  "Choose an appropriate face for STRING, given the MODE name.
+Some modes are special cases with particular faces associated
+with them, for the others, we look at the first character
+of the mode name, and use it to choose a more generic face."
+  (cond ((string-match "^[c]*perl-mode$" mode)
+         (put-text-property 0 (length string)
+                            'face 'desktop-recover-perl-face
+                            string))
+        ((string= mode "sh-mode")
+         (put-text-property 0 (length string)
+                            'face 'desktop-recover-sh-face
+                            string))
+        ((string-match "^[a-d]" mode)
+         (put-text-property 0 (length string)
+                            'face 'desktop-recover-a-to-d-face
+                            string))
+        ((string-match "^[e-j]" mode)
+         (put-text-property 0 (length string)
+                            'face 'desktop-recover-e-to-j-face
+                            string))
+        ((string-match "^[k-q]" mode)
+         (put-text-property 0 (length string)
+                            'face 'desktop-recover-k-to-q-face
+                            string))
+        ((string-match "^[r-s]" mode)
+         (put-text-property 0 (length string)
+                            'face 'desktop-recover-r-to-s-face
+                            string))
+        ((string-match "^[t-z]" mode)
+         (put-text-property 0 (length string)
+                            'face 'desktop-recover-t-to-z-face
+                            string)))
+  string)
 
 
 ;; four fields: marker auto-save-marker name  path
@@ -1219,295 +1197,6 @@ It does almost precisely the same thing, but it shuts up about it."
 	   (after-find-file nil nil t))
 	  ;; (t (error "Recover-file cancelled"))
           )))
-
-
-;;=======
-;; boneyard
-
-;; re-wrote this to avoid shelling out to "touch"
-(defun desktop-recover-flag-clean-exit-touchy ()
-  "Create the file that indicates that we're doing a clean exit.
-Actually, it flags the fact that we *tried* to exit cleanly, since
-there's no easy way to check if all saves were completed before
-emacs died."
-  (interactive)
-  (let* ((clean-exit-flag-file
-           (concat
-            (desktop-recover-fixdir
-             desktop-recover-tmp-dir)
-            desktop-recover-clean-exit-flag))
-         ;; set these to override defaults
-         (output-buffer nil)
-         (error-buffer  nil)
-         (cmd (format "touch %s" clean-exit-flag-file))
-         )
-    (shell-command cmd output-buffer error-buffer)
-    ))
-
-
-  (defun desktop-recover-buffer-exists-p (name)
-    "Was a buffer opened for file of the given NAME?
-Returns nil if a buffer of the right name is not found,
-or a list of all buffer names that match \(there can
-be multiple ones open, from different directories\)."
-    (let* ((pattern (concat "^" name "\\([|<]*\\|$\\)"))
-           (found
-            (desktop-recover-grep pattern
-                                  (mapcar 'buffer-name (buffer-list))))
-           )
-      (message "pattern: %s matched: %s" pattern found) ;; DEBUG
-      found
-      ))
-
-(defun desktop-recover-grep (pattern list)
-  "A simple implementation of perl's grep.
-Return a new list of elements from LIST that match PATTERN.
-LIST is presumed to be a list of strings."
-  (let ((case-fold-search nil)
-        (new-list () ))
-    (dolist (item list)
-      (if (string-match pattern item)
-          (setq new-list (cons item new-list))
-        ))
-    new-list))
-
-
-;; TODO I don't understand what this was supposed to be for...
-(defun desktop-recover-force-save-in-desktop-dir ()
-  "Save the desktop in directory `desktop-dirname'."
-  (interactive)
-  (cond ((not desktop-recover-suppress-save)
-         (if desktop-dirname
-             (desktop-recover-force-save desktop-dirname)
-           (call-interactively 'desktop-save))
-         (message "Desktop saved in %s" (abbreviate-file-name desktop-dirname)))
-        (t
-         (message "Desktop save skipped, because desktop-recover-suppress-save is set"))
-        ))
-
-(defun desktop-recover-force-save-old (dirname &optional release)
-   "Force save of desktop by wiping out any existing file first.
-This ensures you will not have any question about modtimes
-getting in the way."
-  (cond ((not desktop-recover-suppress-save)
-         (setq desktop-dirname (file-name-as-directory (expand-file-name dirname)))
-         (desktop-remove)
-         (desktop-save dirname release)
-         )
-        (t
-         (message "Desktop save skipped, because desktop-recover-suppress-save is set"))
-         ))
-
-;;--------
-;; clean save flag file code
-
-(defun desktop-recover-save-buffers-kill-terminal-old ()
-  "Wrapper around save-buffers-kill-terminal to flag clean exits.
-Actually, it flags the fact that we *tried* to exit cleanly, since
-there's no easy way to check if all saves were completed before
-emacs died."
-  (interactive)
-  (let* ((clean-exit-flag-file
-           (concat
-            (desktop-recover-fixdir desktop-recover-tmp-dir)
-            desktop-recover-clean-exit-flag))
-         ;; set these to override defaults
-         (output-buffer nil)
-         (error-buffer  nil)
-         (cmd (format "touch %s" clean-exit-flag-file))
-         )
-    (desktop-recover-save-with-danglers) ;; TODO double-check. right save?
-    ;; we do this *after* the above, because that also clears the flag
-    (shell-command cmd output-buffer error-buffer)
-    (save-buffers-kill-terminal)
-    ))
-
-
-(defun desktop-read-initialization-old (&optional dirname)
-  "Does precisely the same folderol as the desktop-read function,
-up to the point where it loads the desktop file: instead it returns the
-full name of the desktop file located in DIRNAME."
-;; TODO Consider the possibility that "desktop.el" is completely out-to-lunch
-;; half of the time, and that slavishly imitating it is bad news, as this
-;; routine clearly is.
-  (unless noninteractive ;; whole function is a no-op if used interactively...
-    (setq desktop-dirname
-          (file-name-as-directory
-           (expand-file-name
-            (or
-             ;; If DIRNAME is specified, use it.
-             (and (< 0 (length dirname)) dirname)
-             ;; Otherwise search desktop file in desktop-path.
-             (let ((dirs desktop-path))
-               (while (and dirs
-                           (not (file-exists-p
-                                 (desktop-full-file-name (car dirs)))))
-                 (setq dirs (cdr dirs)))
-               (and dirs (car dirs)))
-             ;; If not found and `desktop-path' is non-nil, use its first element.
-             (and desktop-path (car desktop-path))
-             ;; Default: Home directory.
-             "~"))))
-    (if (file-exists-p (desktop-full-file-name))
-	;; Desktop file found, but is it already in use?
-	(let ((desktop-first-buffer nil)
-	      (desktop-buffer-ok-count 0)
-	      (desktop-buffer-fail-count 0)
-	      (owner (desktop-owner))
-	      ;; Avoid desktop saving during evaluation of desktop buffer.
-	      (desktop-save nil))
-	  (if (and owner
-		   (memq desktop-load-locked-desktop '(nil ask))
-		   (or (null desktop-load-locked-desktop)
-		       (not (y-or-n-p (format "Warning: desktop file appears to be in use by PID %s.\n\
-Using it may cause conflicts.  Use it anyway? " owner)))))
-	      (let ((default-directory desktop-dirname))
-		(setq desktop-dirname nil)
-		(run-hooks 'desktop-not-loaded-hook)
-		(unless desktop-dirname
-		  (message "Desktop file in use; not loaded.")))
-	    (desktop-lazy-abort)
-
-            (desktop-full-file-name) ;; TODO question: why not pass in a dirname?
-                                     ;; relies on default-directory to pass the value?
-
-            ;; returns the file name (make this clearer?)
-
-	    ))
-      ;; No desktop file found.
-      (desktop-clear) ;; -- TODO so why are we fucking clearing the desktop?
-      (let ((default-directory desktop-dirname))
-        (run-hooks 'desktop-no-desktop-file-hook))
-      (message "No desktop file.")
-      nil)))
-
-;; TODO not in use
-;; I don't see any need for these features at all, actually...
-;; the buffer order juggling is not very useful for my purposes
-;; And the detailed report of success or failure seems totally useless...
-;; if the file you wanted didn't get opened, you'll just go open it.
-(defun desktop-read-tail (&optional dirname)
-  "The code that the desktop-read function executes after loading the desktop file.
-This folderol was cut and paste from there on the theory that whatever it is
-that this is doing it may be a good idea for me to do also."
-  (interactive)
-  ;;; TODO add anything else here?
-  ;;;
-  ;; Remember when desktop buffer was modified.
-  (setq desktop-file-modtime (nth 5 (file-attributes (desktop-full-file-name))))
-  ;; If it wasn't already, mark it as in-use, to bother other
-  ;; desktop instances.
-  (unless owner
-    (condition-case nil
-        (desktop-claim-lock)
-      (file-error (message "Couldn't record use of desktop file")
-                  (sit-for 1))))
-
-  ;; `desktop-create-buffer' puts buffers at end of the buffer list.
-  ;; We want buffers existing prior to evaluating the desktop (and
-  ;; not reused) to be placed at the end of the buffer list, so we
-  ;; move them here.
-  (mapc 'bury-buffer
-        (nreverse (cdr (memq desktop-first-buffer (nreverse (buffer-list))))))
-  (switch-to-buffer (car (buffer-list)))
-  (run-hooks 'desktop-delay-hook)
-  (setq desktop-delay-hook nil)
-  (run-hooks 'desktop-after-read-hook)
-  (message "Desktop: %d buffer%s restored%s%s."
-           desktop-buffer-ok-count
-           (if (= 1 desktop-buffer-ok-count) "" "s")
-           (if (< 0 desktop-buffer-fail-count)
-               (format ", %d failed to restore" desktop-buffer-fail-count)
-             "")
-           (if desktop-buffer-args-list
-               (format ", %d to restore lazily"
-                       (length desktop-buffer-args-list))
-             ""))
-  )
-
-(defun desktop-recover-list-dangling-buffers-original ()
-  "List buffers without files or directories, skipping internal and display (*) buffers.
-Returns a list of buffer objects."
-  (interactive)
-  (let* ((preserve-buffer (current-buffer))
-         (output-list)
-         )
-    (save-excursion
-      (dolist (buffy (buffer-list))
-        (set-buffer buffy) ; switch to buffer so we can check 'major-mode'
-        (let* ((file-nameo (buffer-file-name buffy) )
-               (buffy-name (buffer-name  buffy) )
-               )
-          (cond (
-                 (and
-                  ;; looking for buffers without file names
-                  (not file-nameo)
-                  ;; Skip directories
-                  (not (string= major-mode "dired-mode"))
-                  ;; Skip internal buffers.
-                  (not (string= (substring buffy-name 0 1) " "))
-                  ;; Skip dynamic display buffers
-                  (not (string= (substring buffy-name 0 1) "*"))
-                  ;; Skip shell and debugger buffers (even without leading "*")
-                  (not (or
-                        (string= major-mode "shell-mode")
-                        (string= major-mode "eshell-mode")
-                        (string= major-mode "gud-mode")))
-                  )
-                 (push buffy output-list)
-                 )
-                )))
-      (switch-to-buffer preserve-buffer)
-      (deactivate-mark)
-  output-list)))
-
-
-;; ---------
-;; old desktop-save routines
-;; these are functional, but not in use (they were largely for debug purposes)
-
-(defun desktop-recover-display-dangling-buffers ()
-  "List buffers without files or directories, skipping internal and display (*) buffers.
-Returns a list of buffer objects."
-  (interactive)
-  (let* ((dangling-buffers (desktop-recover-list-dangling-buffers))
-         (buffname-list  (mapcar 'buffer-name dangling-buffers))
-         )
-    (desktop-recover-list-in-other-window buffname-list "*mah buffers*")
-    ))
-
-(defun desktop-recover-list-ordinary-buffer-names ()
-  "List names of ordinary buffers, skipping dired, internal and display (*) buffers.
-Returns a list of buffer names.  Note that 'ordinary' buffers include
-'dangling' buffers without associated files."
-  (interactive)
-  (let* ( (ordinary-buffers (desktop-recover-list-ordinary-buffers))
-          (buffname-list  (mapcar 'buffer-name ordinary-buffers) )
-                 )
-    buffname-list))
-
-(defun desktop-recover-print-ordinary-buffer-names ()
-  "Print ordinary buffer names (non-directory, non-asterix, non-internal)."
-  (interactive)
-  (let* ( (buff_list   (desktop-recover-list-ordinary-buffer-names) )
-          (buff_string (mapconcat 'identity buff_list "\n")) )
-    (print buff_string)
-    ))
-
-(defun desktop-recover-insert-ordinary-buffer-names ()
-  "Insert ordinary buffer names (non-directory, non-asterix, non-internal).
-Inserts names into the current buffer, at point, one on each line."
-  (interactive)
-  (let* ( (buff_list   (desktop-recover-list-ordinary-buffer-names) )
-;          (buff_string (mapconcat 'identity buff_list "\n"))
-          )
-    (dolist (item buff_list)
-            (insert item)
-            ;; (insert "\n")
-            (newline 1)
-    )))
-
-
 
 ;;; desktop-recover.el ends here
 
