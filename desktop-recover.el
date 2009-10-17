@@ -654,32 +654,39 @@ conversion from string to list first."
          )
     first-item))
 
+(defvar desktop-recover-last-desktop-list ()
+  "A cache of the desktop-list used by \\[desktop-recover-show-menu].")
 
 ;; this is run from desktop-recover-interactive at emacs init time
 ;; (not currently bound to a key)
 (defun desktop-recover-show-menu (desktop-list)
   "Displays info about buffers that are candidates to be restored.
-These are buffers that existed when the last desktop save was done."
-  (interactive)
-  (unless
-      (desktop-recover-buffer-safe-to-overwrite-p buffer-name)
-    (error (format "%s does not look safe to overwrite." buffer-name)))
-  (let* ((menu-contents))
-    (setq menu-contents (desktop-recover-build-menu-contents desktop-list))
-    (switch-to-buffer desktop-recover-buffer-name)
-    (setq buffer-read-only nil)
-    (delete-region (point-min) (point-max))
-    (insert menu-contents)
-    (forward-line 1)
-    (deactivate-mark)
-    (desktop-recover-mode)
-    (setq buffer-read-only 't)
-  )
-  ;; after recovery, remove flag file (re-created by doing a clean exit)
-  (desktop-recover-reset-clean-exit-flag)
-  ;; make sure auto desktop saves don't happen until after recovery.
-  (desktop-recover-stop-automatic-saves)
-  )
+These are buffers that existed when the last desktop save was done.
+If run interactively, will re-display the most-recently used desktop-list."
+  (interactive
+   (list desktop-recover-last-desktop-list))
+  (let ((buffer-name desktop-recover-buffer-name))
+    (unless
+        (desktop-recover-buffer-safe-to-overwrite-p buffer-name)
+      (error (format "%s does not look safe to overwrite." buffer-name)))
+    (let* ((menu-contents))
+      (setq menu-contents (desktop-recover-build-menu-contents desktop-list))
+      (switch-to-buffer buffer-name)
+      (setq buffer-read-only nil)
+      (delete-region (point-min) (point-max))
+      (insert menu-contents)
+      (forward-line 1)
+      (deactivate-mark)
+      (desktop-recover-mode)
+      (setq buffer-read-only 't)
+      )
+    ;; after recovery, remove flag file (re-created by doing a clean exit)
+    (desktop-recover-reset-clean-exit-flag)
+    ;; make sure auto desktop saves don't happen until after recovery.
+    (desktop-recover-stop-automatic-saves)
+    ;; save this for interactive re-display purposes
+    (setq desktop-recover-last-desktop-list desktop-list)
+    ))
 
 ;;========
 ;; interactive menu for selecting what to recover
