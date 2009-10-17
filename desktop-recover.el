@@ -32,9 +32,7 @@
 ;;  ;; optionallly:
 ;;  (setq desktop-recover-location
 ;;     (desktop-recover-fixdir "$HOME/.emacs.d/")) ;; ~/.emacs.d is the default
-;;  ;; bind a new exit command, so that we can tell if exit was clean.
-;;  (define-key ctl-x-map "\C-c" 'desktop-recover-save-buffers-kill-terminal)
-;;  ;; And this brings up the interactive buffer restore menu
+;;  ;; Brings up the interactive buffer restore menu
 ;;  (desktop-recover-interactive)
 
 ;;; Code:
@@ -58,12 +56,13 @@
 (defvar desktop-recover-doc-toc ""
   "Several variables are defined here just to have a convenient
 place to attach documentation strings:\n
-
-`desktop-recover-doc-desktop'
-`desktop-recover-doc-howto'
-`desktop-recover-doc-philosophy'
-`desktop-recover-doc-dangling-buffers'
-`desktop-recover-doc-desktop-list'
+Introduction:         `desktop-recover-doc-desktop'
+Basic How-To:         `desktop-recover-doc-howto'
+Just a convenience:   `desktop-recover-doc-philosophy'
+\n
+Internal documentation:
+  `desktop-recover-doc-dangling-buffers'
+  `desktop-recover-doc-desktop-list'
 ")
 
 (defvar desktop-recover-doc-desktop ""
@@ -84,9 +83,7 @@ network connections\).\n For other notes, see `desktop-recover-doc-toc'.")
    (1) Put the desktop-recover.el file somewhere in your load-path\n
    (2) Add the following lines to your ~/.emacs:
      (require 'desktop-recover)
-     ;; bind a new exit command, so that we can tell if exit was clean.
-     (define-key ctl-x-map "\C-c" 'desktop-recover-save-buffers-kill-terminal)
-     ;; And this brings up the interactive buffer restore menu
+     ;; brings up the interactive buffer restore menu
      (desktop-recover-interactive)\n
 Now when you invoke emacs, you should see a listing of the buffers that
 were left open when you last exited emacs \(even if you didn't get
@@ -321,19 +318,34 @@ emacs died."
 ;;======================
 ;; saving desktop files (with dangler management)
 (defun desktop-recover-do-saves-automatically ()
-  "Makes the desktop saved automatically using the auto-save-hook."
+  "Makes the desktop saved automatically using the auto-save-hook.
+When exiting emacs intentionally, creates a flag file to indicate
+we have exited cleanly."
   (add-hook 'auto-save-hook 'desktop-recover-save-with-danglers)
-    ;; remove flag file (it's re-created by doing a clean exit)
-    (desktop-recover-reset-clean-exit-flag))
+  ;; remove flag file (it's re-created by doing a clean exit)
+  (desktop-recover-reset-clean-exit-flag)
+  (add-hook 'kill-emacs-hook 'desktop-recover-clean-up-for-exit))
 
 (defun desktop-recover-stop-automatic-saves ()
   "Stops the desktop from being saved automatically via the auto-save-hook."
-  (remove-hook 'auto-save-hook 'desktop-recover-save-with-danglers))
+  (remove-hook 'auto-save-hook 'desktop-recover-save-with-danglers)
+  ;; TODO should this really be done here?  Seems neater...
+  (remove-hook 'kill-emacs-hook 'desktop-recover-clean-up-for-exit))
+
+(defun desktop-recover-clean-up-for-exit ()
+  "For doing a \"clean\" exit.
+Intended to be attached to the kill-emacs-hook.
+Saves off the desktop and creates the clean exit flag file."
+  (desktop-recover-stop-automatic-saves) ;; is this really needed?
+  (desktop-recover-save-with-danglers)
+  (desktop-recover-flag-clean-exit))
 
 (defun desktop-recover-save-buffers-kill-terminal ()
   "For doing a \"clean\" exit.
 Essentially a wrapper around save-buffers-kill-terminal.
-This is intended to be bound to the usual keybinding for exiting emacs."
+This was intended to be bound to the usual keybinding for exiting emacs.
+It is now deprecated, and should be unnecessary.
+See \\[desktop-recover-do-saves-automatically]."
   (interactive)
   (desktop-recover-stop-automatic-saves)
   (desktop-recover-save-with-danglers)
