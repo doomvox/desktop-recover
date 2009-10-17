@@ -472,13 +472,6 @@ which if t means \"we're done with this desktop\"."
 ;;--------
 ;; window management utilities
 
-(defun desktop-recover-buffer-safe-to-overwrite-p (buffer-name)
-  "Verify that a buffer is safe to be over-written.
-Currently this is just a check to make sure the given name
-follows the convention for dynamic display buffers: it must
-begin with a leading asterix."
-  (string= (substring buffer-name 0 1) "*"))
-
 ;; not currently in use
 (defun desktop-recover-list-in-other-window (list buffer-name)
   "Displays LIST of strings in BUFFER-NAME in a second window.
@@ -486,7 +479,7 @@ Closes all other windows except for the current window and the
 newly created one."
   (unless
       (desktop-recover-buffer-safe-to-overwrite-p buffer-name)
-    (error (format "%s does not look safe to over-write." buffer-name)))
+    (error (format "%s does not look safe to overwrite." buffer-name)))
   (delete-other-windows)
   (split-window-vertically)
   (other-window 1)
@@ -495,6 +488,14 @@ newly created one."
   (delete-region (mark) (point))
   (insert (mapconcat 'identity list "\n"))
   (deactivate-mark))
+
+;; used by desktop-recover-show-menu
+(defun desktop-recover-buffer-safe-to-overwrite-p (buffer-name)
+  "Verify that a buffer is safe to be over-written.
+Currently this is just a check to make sure the given name
+follows the convention for dynamic display buffers: it must
+begin with a leading asterix."
+  (string= (substring buffer-name 0 1) "*"))
 
 ;;======================
 ;; read desktop files
@@ -652,6 +653,33 @@ conversion from string to list first."
          (first-item (car list))
          )
     first-item))
+
+
+;; this is run from desktop-recover-interactive at emacs init time
+;; (not currently bound to a key)
+(defun desktop-recover-show-menu (desktop-list)
+  "Displays info about buffers that are candidates to be restored.
+These are buffers that existed when the last desktop save was done."
+  (interactive)
+  (unless
+      (desktop-recover-buffer-safe-to-overwrite-p buffer-name)
+    (error (format "%s does not look safe to overwrite." buffer-name)))
+  (let* ((menu-contents))
+    (setq menu-contents (desktop-recover-build-menu-contents desktop-list))
+    (switch-to-buffer desktop-recover-buffer-name)
+    (setq buffer-read-only nil)
+    (delete-region (point-min) (point-max))
+    (insert menu-contents)
+    (forward-line 1)
+    (deactivate-mark)
+    (desktop-recover-mode)
+    (setq buffer-read-only 't)
+  )
+  ;; after recovery, remove flag file (re-created by doing a clean exit)
+  (desktop-recover-reset-clean-exit-flag)
+  ;; make sure auto desktop saves don't happen until after recovery.
+  (desktop-recover-stop-automatic-saves)
+  )
 
 ;;========
 ;; interactive menu for selecting what to recover
@@ -889,7 +917,7 @@ of the mode name, and use it to choose a more generic face."
 
 ;; four fields: marker auto-save-marker name  path
 (defun desktop-recover-menu-format (desktop-list)
-  "Choose the menu format, balancing between lengths of name and path."
+  "Generate the menu format, balancing between lengths of name and path."
   (let* ((name) (path) (width-name) (width-path)
          (total-width (frame-width))
          (max-name 0)
@@ -1076,28 +1104,6 @@ with auto-save file recovery, if that's indicated."
   (interactive)
   (desktop-recover-unmark)
   (forward-line 1))
-
-;; This is intended to be run at emacs init time (run from
-;; desktop-recover-interactive) so there's no need for a keybinding
-(defun desktop-recover-show-menu (desktop-list)
-  "Displays info about buffers that are candidates to be restored.
-These are buffers that existed when the last desktop save was done."
-  (interactive)
-  (let* ((menu-contents))
-    (setq menu-contents (desktop-recover-build-menu-contents desktop-list))
-    (switch-to-buffer desktop-recover-buffer-name)
-    (setq buffer-read-only nil)
-    (delete-region (point-min) (point-max))
-    (insert menu-contents)
-    (forward-line 1)
-    (desktop-recover-mode)
-    (setq buffer-read-only 't)
-  )
-  ;; after recovery, remove flag file (re-created by doing a clean exit)
-  (desktop-recover-reset-clean-exit-flag)
-  ;; make sure auto desktop saves don't happen until after recovery.
-  (desktop-recover-stop-automatic-saves)
-  )
 
 (defun desktop-recover-toggle-hash ()
   "Toggle the auto-save \(\"#\"\) marker for the current line.
