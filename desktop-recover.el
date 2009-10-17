@@ -479,9 +479,11 @@ follows the convention for dynamic display buffers: it must
 begin with a leading asterix."
   (string= (substring buffer-name 0 1) "*"))
 
+;; not currently in use
 (defun desktop-recover-list-in-other-window (list buffer-name)
   "Displays LIST of strings in BUFFER-NAME in a second window.
-Closes all other windows except for the current window and the newly created one."
+Closes all other windows except for the current window and the
+newly created one."
   (unless
       (desktop-recover-buffer-safe-to-overwrite-p buffer-name)
     (error (format "%s does not look safe to over-write." buffer-name)))
@@ -765,195 +767,8 @@ conversion from string to list first."
 (defvar desktop-recover-unmarker " "
   "Character used to erase either of the above markers (typically a space).")
 
-(define-derived-mode desktop-recover-mode
-  text-mode "desktop-recover"
-  "Major mode to display candidates for buffers to be restored when re-starting emacs.
-\\{desktop-recover-mode-map}"
-  (use-local-map desktop-recover-mode-map)
-  )
-
-(define-key desktop-recover-mode-map "\C-m" 'desktop-recover-do-it)
-(define-key desktop-recover-mode-map "m"    'desktop-recover-mark-move-down)
-(define-key desktop-recover-mode-map "u"    'desktop-recover-unmark-move-down)
-(define-key desktop-recover-mode-map "n"    'next-line)
-(define-key desktop-recover-mode-map "p"    'previous-line)
-(define-key desktop-recover-mode-map "*"    'desktop-recover-mark-move-down)
-(define-key desktop-recover-mode-map "#"    'desktop-recover-toggle-hash-move-down)
-
-(defun desktop-recover-do-it ()
-  "Accept the current settings of the restore menu buffer.
-Runs the appropriate \"desktop-create-buffer\" calls stored
-in the desktop-list data structure.  Follows up with a
-with auto-save file recovery, if that's indicated."
-  (interactive)
-  (let* (
-         (recover-list-buffer (current-buffer))
-         (desktop-recover-suppress-save t) ;; Don't save desktop during load
-         (marker-pattern
-          (concat "^[ \t]"
-                  desktop-recover-marker
-                  "\\*")) ;; line begins with asterix
-         (auto-save-pattern desktop-recover-auto-save-marker)
-         (line-count (count-lines (point-min) (point-max)))
-         ;; saving the file the cursor is pointing at
-         (current-name (get-char-property (point) 'name))
-         (current-path (get-char-property (point) 'path))
-         ;;
-         )
-    (goto-char (point-min))
-    (while ;; loop over all lines in buffer
-        (progn
-          (save-excursion
-            (move-beginning-of-line 1)
-            ;; if line is marked with an asterix...
-            (cond ((thing-at-point-looking-at marker-pattern)
-                   (let* (
-                          ;; unpacking info stashed in 1st char properties
-                          (dcb-code  (eval (get-char-property (point) 'dcb)))
-                          (auto-save (eval (get-char-property (point) 'auto-save)))
-                          ;; (mode (eval (get-char-property (point) 'mode)))
-                          (name (eval (get-char-property (point) 'name)))
-                          (path (eval (get-char-property (point) 'path)))
-                          ;;
-                          ;; need to mimic the context for dcb calls in desktop.el
-                          ;; (even though we don't care about these features).
-                          (desktop-first-buffer nil)
-                          (desktop-buffer-ok-count 0)
-                          (desktop-buffer-fail-count 0)
-                          (owner (desktop-owner))
-                          )
-                     ;; do it to it
-                     (eval (read dcb-code))
-                     (cond ((not (string-match "/$" path)) ;; not a directory
-                            ;; check for auto-save file, recover if indicated
-                            (cond ((and
-                                    (desktop-recover-newer-auto-save path)
-                                    (string-match auto-save-pattern auto-save))
-                                   (desktop-recover-recover-file path)
-                                   ))
-                            ))
-                     )))
-            ) ;; end save-excursion
-          ;; (set-buffer recover-list-buffer) ;; do you *trust* save-excursion?
-          (forward-line 1)
-          (<= (line-number-at-pos) line-count))) ;; end while-progn
-    (desktop-recover-do-saves-automatically)
-    ;; bring current-path to the fore, then show (list-buffers)
-    (if current-path
-        (find-file current-path))
-    (list-buffers)
-    ))
-
-(defun desktop-recover-mark ()
-  "Set the marker for the current line: add leading asterix."
-  ;; TODO hard to avoid hardcoding column 2 presumption, right?
-  (interactive)
-  (save-excursion
-  (setq buffer-read-only nil)
-    (move-beginning-of-line 1)
-    (forward-char 1)
-    (delete-char 1)
-    (insert desktop-recover-marker)
-    (setq overwrite-mode nil)
-    (setq buffer-read-only 't)
-  ))
-
-(defun desktop-recover-unmark ()
-  "Unset the marker for the current line: remove leading asterix."
-  ;; TODO better to search for the asterix, no?  This assumes it's in col 2.
-  (interactive)
-  (save-excursion
-  (setq buffer-read-only nil)
-    (move-beginning-of-line 1)
-    (forward-char 1)
-    (delete-char 1)
-    (insert desktop-recover-unmarker)
-    (setq overwrite-mode nil)
-    (setq buffer-read-only 't)
-  ))
-
-(defun desktop-recover-mark-move-down ()
-  "Set marker on the current line, move down one."
-  (interactive)
-  (desktop-recover-mark)
-  (forward-line 1))
-
-(defun desktop-recover-unmark-move-down ()
-  "Unset marker of the current line, move down one."
-  (interactive)
-  (desktop-recover-unmark)
-  (forward-line 1))
-
-;; This is intended to be run at emacs init time (run from
-;; desktop-recover-interactive) so there's no need for a keybinding
-(defun desktop-recover-show-menu (desktop-list)
-  "Displays info about buffers that are candidates to be restored.
-These are buffers that existed when the last desktop save was done."
-  (interactive)
-  (let* ((menu-contents))
-    (setq menu-contents (desktop-recover-build-menu-contents desktop-list))
-    (switch-to-buffer desktop-recover-buffer-name)
-    (setq buffer-read-only nil)
-    (delete-region (point-min) (point-max))
-    (insert menu-contents)
-    (forward-line 1)
-    (desktop-recover-mode)
-    (setq buffer-read-only 't)
-  )
-  ;; after doing a recovery, must clean-up so that we can detect clean exits next time
-  (desktop-recover-reset-clean-exit-flag)
-  ;; make sure auto desktop saves don't happen until after recovery.
-  (desktop-recover-stop-automatic-saves)
-  )
-
-(defun desktop-recover-toggle-hash ()
-  "Toggle the auto-save \(\"#\"\) marker for the current line.
-Will not turn this mark on unless there really is a newer auto-save file."
-  (interactive)
-  (save-excursion
-    (setq buffer-read-only nil)
-    (move-beginning-of-line 1)
-    (let* (;; unpacking info stashed in 1st char properties
-           (status (eval (get-char-property (point) 'auto-save)))
-           ;; (dcb-code  (eval (get-char-property (point) 'dcb)))
-           ;; (mode (eval (get-char-property (point) 'mode)))
-           (name (eval (get-char-property (point) 'name)))
-           (path (eval (get-char-property (point) 'path)))
-           )
-      (cond ((string= status desktop-recover-auto-save-marker)
-             ;; search for hash mark
-             (search-forward desktop-recover-auto-save-marker)
-             (backward-char 1)
-             ;; replace with desktop-recover-unmarker
-             (delete-char 1)
-             (insert desktop-recover-unmarker)
-             ;; modify text property
-             (setq status desktop-recover-unmarker)
-             (move-beginning-of-line 1)
-             (put-text-property (point) (1+ (point)) 'auto-save status)
-             )
-            ((and
-              (string= status desktop-recover-unmarker)
-              (desktop-recover-newer-auto-save path))
-             ;; step to hash marker field (no easy way to avoid hardcoding)
-             (forward-char 3)
-             ;; replace with desktop-recover-auto-save-marker
-             (delete-char 1)
-             (insert desktop-recover-auto-save-marker)
-             ;; modify text property
-             (setq status desktop-recover-auto-save-marker)
-             (move-beginning-of-line 1)
-             (put-text-property (point) (1+ (point)) 'auto-save status)
-             ))
-      (setq overwrite-mode nil)
-      (setq buffer-read-only 't)
-      )))
-
-(defun desktop-recover-toggle-hash-move-down ()
-  "Set marker on the current line, move down one."
-  (interactive)
-  (desktop-recover-toggle-hash)
-  (forward-line 1))
+;;--------
+;; the view: display the info about buffers which may be re-loaded
 
 (defun desktop-recover-build-menu-contents (desktop-list)
   "Builds the menu text from the DESKTOP-LIST data."
@@ -1139,6 +954,200 @@ name, path, mode and dcb-code."
     ;; if autosave does not exist, this is nil
     (file-newer-than-file-p auto-save path)
     ))
+
+;;--------
+;; the controller: a simple mode to handle selection of buffers to be restored.
+
+(define-derived-mode desktop-recover-mode
+  text-mode "desktop-recover"
+  "Major mode to display candidates for buffers to be restored when re-starting emacs.
+\\{desktop-recover-mode-map}"
+  (use-local-map desktop-recover-mode-map)
+  )
+
+(define-key desktop-recover-mode-map "\C-m" 'desktop-recover-do-it)
+(define-key desktop-recover-mode-map "m"  'desktop-recover-mark-move-down)
+(define-key desktop-recover-mode-map "u"  'desktop-recover-unmark-move-down)
+(define-key desktop-recover-mode-map "n"  'next-line)
+(define-key desktop-recover-mode-map "p"  'previous-line)
+(define-key desktop-recover-mode-map "*"  'desktop-recover-mark-move-down)
+(define-key desktop-recover-mode-map "#"  'desktop-recover-toggle-hash-move-down)
+
+(defun desktop-recover-do-it ()
+  "Accept the current settings of the restore menu buffer.
+Runs the appropriate \"desktop-create-buffer\" calls stored
+in the desktop-list data structure.  Follows up
+with auto-save file recovery, if that's indicated."
+  (interactive)
+  (let* (
+         (recover-list-buffer (current-buffer))
+         (desktop-recover-suppress-save t) ;; Don't save desktop during load
+         (marker-pattern
+          (concat "^[ \t]"
+                  desktop-recover-marker
+                  "\\*")) ;; line begins with asterix
+         (auto-save-pattern desktop-recover-auto-save-marker)
+         (line-count (count-lines (point-min) (point-max)))
+         ;; saving the file the cursor is pointing at
+         (current-name (get-char-property (point) 'name))
+         (current-path (get-char-property (point) 'path))
+         ;;
+         )
+    (goto-char (point-min))
+    (while ;; loop over all lines in buffer
+        (progn
+          (save-excursion
+            (move-beginning-of-line 1)
+            ;; if line is marked with an asterix...
+            (cond ((thing-at-point-looking-at marker-pattern)
+                   (let*
+                       (
+                        ;; unpacking info stashed in 1st char properties
+                        (dcb-code  (eval (get-char-property (point) 'dcb)))
+                        (auto-save (get-char-property (point) 'auto-save))
+                        ;; (mode (eval (get-char-property (point) 'mode)))
+                        (name (get-char-property (point) 'name))
+                        (path (get-char-property (point) 'path))
+                        ;; must imitate the context of dcb calls in desktop.el
+                        ;; (even though we don't care about these features).
+                        (desktop-first-buffer nil)
+                        (desktop-buffer-ok-count 0)
+                        (desktop-buffer-fail-count 0)
+                        (owner (desktop-owner))
+                        )
+                     ;; do it to it
+                     (eval (read dcb-code))
+                     (cond ((not (string-match "/$" path)) ;; not a directory
+                            ;; check for auto-save file, recover if indicated
+                            (cond ((and
+                                    (desktop-recover-newer-auto-save path)
+                                    (string-match auto-save-pattern auto-save))
+                                   (desktop-recover-recover-file path)
+                                   ))
+                            ))
+                     )))
+            ) ;; end save-excursion
+          ;; (set-buffer recover-list-buffer) ;; do you *trust* save-excursion?
+          (forward-line 1)
+          (<= (line-number-at-pos) line-count))) ;; end while-progn
+    (desktop-recover-do-saves-automatically)
+    ;; bring current-path to the fore, then show (list-buffers)
+    (if current-path
+        (find-file current-path))
+    (list-buffers)
+    ))
+
+(defun desktop-recover-mark ()
+  "Set the marker for the current line: add leading asterix."
+  ;; TODO hard to avoid hardcoding column 2 presumption, right?
+  (interactive)
+  (save-excursion
+  (setq buffer-read-only nil)
+    (move-beginning-of-line 1)
+    (forward-char 1)
+    (delete-char 1)
+    (insert desktop-recover-marker)
+    (setq overwrite-mode nil)
+    (setq buffer-read-only 't)
+  ))
+
+(defun desktop-recover-unmark ()
+  "Unset the marker for the current line: remove leading asterix."
+  ;; TODO better to search for the asterix, no?  This assumes it's in col 2.
+  (interactive)
+  (save-excursion
+  (setq buffer-read-only nil)
+    (move-beginning-of-line 1)
+    (forward-char 1)
+    (delete-char 1)
+    (insert desktop-recover-unmarker)
+    (setq overwrite-mode nil)
+    (setq buffer-read-only 't)
+  ))
+
+(defun desktop-recover-mark-move-down ()
+  "Set marker on the current line, move down one."
+  (interactive)
+  (desktop-recover-mark)
+  (forward-line 1))
+
+(defun desktop-recover-unmark-move-down ()
+  "Unset marker of the current line, move down one."
+  (interactive)
+  (desktop-recover-unmark)
+  (forward-line 1))
+
+;; This is intended to be run at emacs init time (run from
+;; desktop-recover-interactive) so there's no need for a keybinding
+(defun desktop-recover-show-menu (desktop-list)
+  "Displays info about buffers that are candidates to be restored.
+These are buffers that existed when the last desktop save was done."
+  (interactive)
+  (let* ((menu-contents))
+    (setq menu-contents (desktop-recover-build-menu-contents desktop-list))
+    (switch-to-buffer desktop-recover-buffer-name)
+    (setq buffer-read-only nil)
+    (delete-region (point-min) (point-max))
+    (insert menu-contents)
+    (forward-line 1)
+    (desktop-recover-mode)
+    (setq buffer-read-only 't)
+  )
+  ;; after recovery, remove flag file (re-created by doing a clean exit)
+  (desktop-recover-reset-clean-exit-flag)
+  ;; make sure auto desktop saves don't happen until after recovery.
+  (desktop-recover-stop-automatic-saves)
+  )
+
+(defun desktop-recover-toggle-hash ()
+  "Toggle the auto-save \(\"#\"\) marker for the current line.
+Will not turn this mark on unless there really is a newer auto-save file."
+  (interactive)
+  (save-excursion
+    (setq buffer-read-only nil)
+    (move-beginning-of-line 1)
+    (let* (;; unpacking info stashed in 1st char properties
+           (status (eval (get-char-property (point) 'auto-save)))
+           ;; (dcb-code  (eval (get-char-property (point) 'dcb)))
+           ;; (mode (eval (get-char-property (point) 'mode)))
+           (name (eval (get-char-property (point) 'name)))
+           (path (eval (get-char-property (point) 'path)))
+           )
+      (cond ((string= status desktop-recover-auto-save-marker)
+             ;; search for hash mark
+             (search-forward desktop-recover-auto-save-marker)
+             (backward-char 1)
+             ;; replace with desktop-recover-unmarker
+             (delete-char 1)
+             (insert desktop-recover-unmarker)
+             ;; modify text property
+             (setq status desktop-recover-unmarker)
+             (move-beginning-of-line 1)
+             (put-text-property (point) (1+ (point)) 'auto-save status)
+             )
+            ((and
+              (string= status desktop-recover-unmarker)
+              (desktop-recover-newer-auto-save path))
+             ;; step to hash marker field (no easy way to avoid hardcoding)
+             (forward-char 3)
+             ;; replace with desktop-recover-auto-save-marker
+             (delete-char 1)
+             (insert desktop-recover-auto-save-marker)
+             ;; modify text property
+             (setq status desktop-recover-auto-save-marker)
+             (move-beginning-of-line 1)
+             (put-text-property (point) (1+ (point)) 'auto-save status)
+             ))
+      (setq overwrite-mode nil)
+      (setq buffer-read-only 't)
+      )))
+
+(defun desktop-recover-toggle-hash-move-down ()
+  "Set marker on the current line, move down one."
+  (interactive)
+  (desktop-recover-toggle-hash)
+  (forward-line 1))
+
 
 ;;=======
 ;; recover-file *quietly*
