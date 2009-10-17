@@ -879,14 +879,18 @@ If run interactively, will re-display the most-recently used desktop-list."
       (let ((visible-path path)
             (visible-name name)
             )
-        (cond (;; looks like a directory
-               (string= mode "dired-mode")
-               (setq visible-path
-                     (replace-regexp-in-string "/$" "" visible-path))
-               )
-              (t ;; not a directory
-               (setq visible-path (file-name-directory path))
-               ))
+         (cond (;; looks like a directory
+                (string= mode "dired-mode")
+                (setq visible-path
+                      (replace-regexp-in-string "[^/]*/$" "" visible-path))
+                (setq visible-path
+                      (replace-regexp-in-string "/$" "" visible-path))
+                )
+               (t ;; not a directory
+                (setq visible-path (file-name-directory path))
+                (setq visible-path
+                      (replace-regexp-in-string "/$" "" visible-path))
+                ))
         (setq visible-path
               (replace-regexp-in-string
                (concat "^" (getenv "HOME"))
@@ -1053,13 +1057,8 @@ with auto-save file recovery, if that's indicated."
                   desktop-recover-marker
                   "\\*")) ;; line begins with asterix
          (auto-save-pattern desktop-recover-auto-save-marker)
-         (line-count (count-lines (point-min) (point-max)))  ;;;* maybe not needed now?
-         ;; ;; saving the file the cursor is pointing at
-         ;; (current-name (get-char-property (point) 'name))
-         ;; (current-path (get-char-property (point) 'path))
-         ;;
          )
-;;;*    (goto-char (point-min))
+    ;; now we do all of the lines
     (goto-char (point-max))
     (while ;; loop over all lines in buffer
         (progn
@@ -1095,15 +1094,10 @@ with auto-save file recovery, if that's indicated."
                      )))
             ) ;; end save-excursion
           ;; (set-buffer recover-list-buffer) ;; do you *trust* save-excursion?
-          ;;;;* (forward-line 1)
           (previous-line 1)
-          ;;;;* (<= (line-number-at-pos) line-count)
           (>= (line-number-at-pos) 2)
           )) ;; end while-progn
     (desktop-recover-do-saves-automatically)
-    ;; ;; bring current-path to the fore (as it happens that was confusing behavior).
-    ;; (if current-path
-    ;;     (find-file current-path))
     (list-buffers)
     ))
 
