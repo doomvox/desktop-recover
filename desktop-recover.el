@@ -301,7 +301,9 @@ emacs died."
 ;; saving desktop files (with dangler management)
 (defun desktop-recover-do-saves-automatically ()
   "Makes the desktop saved automatically using the auto-save-hook."
-  (add-hook 'auto-save-hook 'desktop-recover-save-with-danglers))
+  (add-hook 'auto-save-hook 'desktop-recover-save-with-danglers)
+    ;; remove flag file (it's re-created by doing a clean exit)
+    (desktop-recover-reset-clean-exit-flag))
 
 (defun desktop-recover-stop-automatic-saves ()
   "Stops the desktop from being saved automatically via the auto-save-hook."
@@ -449,21 +451,19 @@ See: `desktop-recover-dangling-buffers-doc'"
 ;; --------
 ;; desktop-recover.el save primitives (all other "saves" use these internally)
 
-(defun desktop-recover-force-save (&optional dirname release)
+(defun desktop-recover-force-save (&optional dirname)
    "Force save of desktop by wiping out any existing file first.
 This ensures you will not have any questions getting in the way
 about modification times, etc.  If DIRNAME is not given, defaults
 to `desktop-recover-location' or the current `desktop-dirname' in
-that order.  Passes through RELEASE to \\[desktop-save],
-which if t means \"we're done with this desktop\"."
-;; Essentially, setting RELEASE deletes the lock file.
-;; Should I just do that all the time?
+that order."
    (let* ((location (desktop-recover-location dirname))
           )
      (cond ((not desktop-recover-suppress-save)
             (setq desktop-dirname (file-name-as-directory (expand-file-name location)))
+            (desktop-release-lock) ;; just being neat
             (desktop-remove)
-            (desktop-save location release)
+            (desktop-save location)
             )
            (t
             (message "Desktop save skipped, because desktop-recover-suppress-save is set"))
@@ -658,7 +658,7 @@ conversion from string to list first."
   "A cache of the desktop-list used by \\[desktop-recover-show-menu].")
 
 ;; this is run from desktop-recover-interactive at emacs init time
-;; (not currently bound to a key)
+;; (it is not currently bound to a key)
 (defun desktop-recover-show-menu (desktop-list)
   "Displays info about buffers that are candidates to be restored.
 These are buffers that existed when the last desktop save was done.
@@ -680,8 +680,6 @@ If run interactively, will re-display the most-recently used desktop-list."
       (desktop-recover-mode)
       (setq buffer-read-only 't)
       )
-    ;; after recovery, remove flag file (re-created by doing a clean exit)
-    (desktop-recover-reset-clean-exit-flag)
     ;; make sure auto desktop saves don't happen until after recovery.
     (desktop-recover-stop-automatic-saves)
     ;; save this for interactive re-display purposes
