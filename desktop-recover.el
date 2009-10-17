@@ -1053,13 +1053,14 @@ with auto-save file recovery, if that's indicated."
                   desktop-recover-marker
                   "\\*")) ;; line begins with asterix
          (auto-save-pattern desktop-recover-auto-save-marker)
-         (line-count (count-lines (point-min) (point-max)))
-         ;; saving the file the cursor is pointing at
-         (current-name (get-char-property (point) 'name))
-         (current-path (get-char-property (point) 'path))
+         (line-count (count-lines (point-min) (point-max)))  ;;;* maybe not needed now?
+         ;; ;; saving the file the cursor is pointing at
+         ;; (current-name (get-char-property (point) 'name))
+         ;; (current-path (get-char-property (point) 'path))
          ;;
          )
-    (goto-char (point-min))
+;;;*    (goto-char (point-min))
+    (goto-char (point-max))
     (while ;; loop over all lines in buffer
         (progn
           (save-excursion
@@ -1094,12 +1095,15 @@ with auto-save file recovery, if that's indicated."
                      )))
             ) ;; end save-excursion
           ;; (set-buffer recover-list-buffer) ;; do you *trust* save-excursion?
-          (forward-line 1)
-          (<= (line-number-at-pos) line-count))) ;; end while-progn
+          ;;;;* (forward-line 1)
+          (previous-line 1)
+          ;;;;* (<= (line-number-at-pos) line-count)
+          (>= (line-number-at-pos) 2)
+          )) ;; end while-progn
     (desktop-recover-do-saves-automatically)
-    ;; bring current-path to the fore, then show (list-buffers)
-    (if current-path
-        (find-file current-path))
+    ;; ;; bring current-path to the fore (as it happens that was confusing behavior).
+    ;; (if current-path
+    ;;     (find-file current-path))
     (list-buffers)
     ))
 
