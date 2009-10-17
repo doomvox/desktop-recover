@@ -55,50 +55,74 @@
 ;; poor man's pod/lazy man's info:
 ;;   dummy variables with documentation attached
 
-(defvar desktop-recover-toc-doc ""
+(defvar desktop-recover-doc-toc ""
   "Several variables are defined here just to have a convenient
 place to attach documentation strings:\n
 
-`desktop-recover-desktop-doc'
-`desktop-recover-philosophy-doc'
-`desktop-recover-dangling-buffers-doc'
-`desktop-recover-desktop-list-doc'
-
+`desktop-recover-doc-desktop'
+`desktop-recover-doc-howto'
+`desktop-recover-doc-philosophy'
+`desktop-recover-doc-dangling-buffers'
+`desktop-recover-doc-desktop-list'
 ")
 
-(defvar desktop-recover-desktop-doc ""
-  "In this context the \"desktop\" is the emacs desktop, i.e. the
-state of all the current buffers that are open at a given moment,
-except for the dynamic buffers \(usually named with a leading
-asterix\) and a few other odds and ends.  This is the terminology
+(defvar desktop-recover-doc-desktop ""
+  "We use the term \"desktop\" to mean the emacs desktop, i.e. the
+state of all the current buffers that are open at a given moment
+\(except for the dynamic buffers-- usually named with a leading
+asterix-- and a few other odds and ends\).  This is the terminology
 used by the package \"desktop.el\" \(already standard with GNU
 emacs\).  This package, \"desktop-recover.el\", works with
 \"desktop.el\", using it for interactive recovery of emacs state
-\(e.g. for crash recovery, for people working over flaky network
-connections\).  See `desktop-recover-toc-doc'.")
-
+\(e.g. for crash recovery, primarily for people working over flaky
+network connections\).\n For other notes, see `desktop-recover-doc-toc'.")
 ;; it's also likely that this can be used with project-root to
 ;; implement project-specific desktops.
 
-(defvar desktop-recover-philosophy-doc ""
+(defvar desktop-recover-doc-howto ""
+  "Setup:
+   (1) Put the desktop-recover.el file somewhere in your load-path\n
+   (2) Add the following lines to your ~/.emacs:
+     (require 'desktop-recover)
+     ;; bind a new exit command, so that we can tell if exit was clean.
+     (define-key ctl-x-map "\C-c" 'desktop-recover-save-buffers-kill-terminal)
+     ;; And this brings up the interactive buffer restore menu
+     (desktop-recover-interactive)\n
+Now when you invoke emacs, you should see a listing of the buffers that
+were left open when you last exited emacs \(even if you didn't get
+a chance to exit cleanly\).  You can just hit \"Enter\" to restore
+all of the indicated buffers (marked with an \"*\"), or you can cursor
+up and down first, and adjust the selections first, using \"u\" to
+unmark and \"*\" to mark.\n
+That's about all you need to know to get started.  There are some
+other details that you may like to know eventually: the presence of
+a newer auto-save file is indicated with a \"%\" \(next to the \"*\"\).
+These auto-saves are recovered automatically, but you can skip
+one by doing a \"%\" on that line.  If you had any temporary buffers
+that weren't saved to files, this system will automatically preserve
+them in a special temp directory: they're restored by default if
+you did not exit cleanly, but if you did they will not be selected
+by default.\n
+For other notes, see `desktop-recover-doc-toc'.")
+
+(defvar desktop-recover-doc-philosophy ""
   "In many respects desktop-recover.el works more simply than desktop.el.
 While desktop-recover.el uses desktop.el internally to save the
-state of the emacs \"desktop\", it very carefully overrides or
-ignores some features. By itself, desktop.el is very cautious
-about keeping desktop files locked, so that it can warn the user
-if it looks like two different emacs instances are trying to use
-the same file.  It also dynamically searches likely locations to
-find a desktop file, and it makes it hard to override that
-behavior (e.g. just setting the `desktop-dirname' variable
-doesn't always work).  This package, desktop-recover.el takes a
-somewhat different approach: the presumption is that there is
-nothing critical about saving desktop state; it's just a
-convenience feature, and so there's nothing important enough
-about it to want to bother the user with confirmation.  The
-basic desktop-recover save primitive is \\[desktop-recover-force-save]:
+state of the emacs \"desktop\", it carefully overrides some
+features.  By itself, desktop.el is very cautious about keeping
+desktop files locked, so that it can warn the user if it looks
+like two different emacs instances are trying to use the same
+file.  It also dynamically searches likely locations to find a
+desktop file, and it makes it hard to shut-off that behavior (the
+handling of the `desktop-dirname' variable is complicated).  This
+package, desktop-recover.el takes a somewhat different approach:
+the presumption is that there is nothing critical about saving
+desktop state; it's just a convenience feature, and so there's no
+good reason to bother the user about confirmations.  The basic
+desktop-recover save primitive is \\[desktop-recover-force-save]:
 it just ignores any desktop.el locks.\n
-Also desktop-recover.el uses a much simpler directory search: it
-has a single variable that can be set to tell it where to save
+Further, desktop-recover.el uses a much simpler directory search:
+it has a single variable that can be set to tell it where to save
 to: `desktop-recover-location'.  This defaults to the value of
 `user-emacs-directory', which is typically \"~/.emacs.d\".  To
 get desktop.el's dynamically determined `desktop-dirname'
@@ -107,9 +131,9 @@ In order to supress saves, desktop.el code sets the
 `desktop-dirname' to nil, but in contrast, the desktop-recover.el
 has the variable `desktop-recover-suppress-save', and also the
 function \\[desktop-recover-stop-automatic-saves].\n
-See `desktop-recover-toc-doc'.")
+For other notes, see `desktop-recover-doc-toc'.")
 
-(defvar desktop-recover-dangling-buffers-doc ""
+(defvar desktop-recover-doc-dangling-buffers ""
   "We use \"dangling buffers\" to mean buffers without associated files.
 Typically we will exclude the special display buffers (which
 usually begin with an asterix), and possibly dired buffers, and
@@ -122,9 +146,9 @@ as permanent as ordinary files.\n Nothing else should be saved to
 this special temp directory, because we'll use this location
 later to distinguish dangling buffers even after they've been
 saved.  This way a clean exit from emacs can skip loading them by default.
-See `desktop-recover-toc-doc'.")
+For other notes, see `desktop-recover-doc-toc'.")
 
-(defvar desktop-recover-desktop-list-doc ""
+(defvar desktop-recover-doc-desktop-list ""
   "Many functions in this package work with a data-structure
 typically called the \"desktop-list\". This describes the buffers
 recorded in the .emacs-desktop file, which are candidates to be
@@ -139,33 +163,12 @@ will need to be run to restore the buffer.\n
 Note, the name \"path\" may be confusing: normally, I would call
 this the \"full-name\", but in the case of dired buffers, a
 directory is all it is, so we go by the more general name \"path\".
-See `desktop-recover-toc-doc'.
+For other notes, see `desktop-recover-doc-toc'.
 ")
 
 ;;;;##########################################################################
 ;;;;  User Options, Variables
 ;;;;##########################################################################
-
-;; defining this first to use it in following defvars, etc.
-(defun desktop-recover-fixdir (location &optional root)
-  "Fixes up the file directory LOCATION.
-Conditions directory paths for portability and robustness.
-If the directory does not yet exist, it will be created.\n
-Some examples (note, always adds a trailing slash):
- '~/tmp'             => '/home/doom/tmp/'
- '~/tmp/../bin/test' => '/home/bin/test/'\n
-Note: converts relative paths to absolute, using the current
-default-directory setting, unless specified otherwise with the
-ROOT option. As a side-effect: this converts the empty string into
-default-directory or ROOT."
-  (let ((location
-         (substitute-in-file-name
-          (convert-standard-filename
-           (file-name-as-directory
-            (expand-file-name location root))))))
-    (unless (file-directory-p location)
-      (make-directory location t))
-    location))
 
 (defgroup desktop-recover nil
   "Interactive recovery of Emacs status."
@@ -219,21 +222,40 @@ Note: this flag is respected by desktop-recover.el code, not desktop.el.")
 ;;=======
 ;; routines common to save/read operations
 
-;; This is used by: desktop-recover-force-save
-;; Also: desktop-recover-file-path and hence: desktop-recover-interactive
+(defun desktop-recover-fixdir (location &optional root)
+  "Fixes up the file directory LOCATION.
+Conditions directory paths for portability and robustness.
+If the directory does not yet exist, it will be created.\n
+Some examples (note that this always adds a trailing slash):
+ '~/tmp'             => '/home/doom/tmp/'
+ '~/tmp/../bin/test' => '/home/bin/test/'\n
+Relative paths are converted to absolute, using the current
+`default-directory' setting, unless specified otherwise with the
+ROOT option. As a side-effect: this converts the empty string into
+`default-directory' or ROOT."
+  (let ((location
+         (substitute-in-file-name
+          (convert-standard-filename
+           (file-name-as-directory
+            (expand-file-name location root))))))
+    (unless (file-directory-p location)
+      (make-directory location t))
+    location))
+
+;; This is used by: desktop-recover-force-save & desktop-recover-file-path
+;; (and hence: desktop-recover-interactive)
 (defun desktop-recover-location (&optional dirname)
   "The standard behavior for choosing the desktop save location.
 If DIRNAME is not given, defaults to `desktop-recover-location'
 or the current `desktop-dirname' in that order.
 Runs the result through \\[desktop-recover-fixdir], which
-does make sure that it will exist. Sets `desktop-dirname' as a side-effect."
+makes sure that it will exist. Sets `desktop-dirname' as a side-effect."
   (let* ((location  (desktop-recover-fixdir
                      (or
                       ;; If DIRNAME is given, use it.
                       (and (< 0 (length dirname)) dirname)
                       desktop-recover-location
-                      desktop-dirname)))
-         )
+                      desktop-dirname))))
     (setq desktop-dirname location) ;; makes sure desktop.el knows what we're doing
     ))
 
@@ -248,8 +270,7 @@ Note: \\[desktop-recover-location] sets `desktop-dirname' as a side-effect."
   (let* ((location (desktop-recover-location dirname))
          (full-name (concat
                       location
-                      desktop-base-file-name))
-         )
+                      desktop-base-file-name)))
     full-name))
 
 ;;---------
@@ -326,7 +347,7 @@ Works by saving these danglers to a standard tmp directory, then
 lets desktop.el save them along with the other open files.  After
 re-starting emacs, you should then have buffers corresponding to
 the old dangling buffers (though now they'll be associated with
-files in the tmp location).  See: `desktop-recover-dangling-buffers-doc'"
+files in the tmp location).  See: `desktop-recover-doc-dangling-buffers'"
   (interactive)
   (let* ((preserve-buffer (current-buffer))
          (temp-loc
@@ -415,7 +436,7 @@ Returns a list of buffer objects.  Note that 'ordinary' buffers include
   "Remove association between dangling buffers and temp files.
 We can distinguish between \"real\" buffers and ones that are
 dangling-but-saved by the fact that they've been saved to
-`desktop-recover-tmp-dir'. See `desktop-recover-dangling-buffers-doc'."
+`desktop-recover-doc-tmp-dir'. See `desktop-recover-dangling-buffers'."
   (interactive)
   (let* ((preserve-buffer (current-buffer))
          (temp-loc (desktop-recover-fixdir desktop-recover-tmp-dir))
@@ -443,7 +464,7 @@ dangling-but-saved by the fact that they've been saved to
   "Desktop autosave routine that skips dangling buffers of any vintage.
 This means that it screens out the ones that have been made less ephemeral
 by associating them with files in the standard tmp directory.
-See: `desktop-recover-dangling-buffers-doc'"
+See: `desktop-recover-doc-dangling-buffers'"
   (interactive)
   (desktop-recover-break-file-association-of-danglers)
   (desktop-recover-force-save))
@@ -557,7 +578,7 @@ desktop-create-buffer function calls, and picking out names from
 them to use for user confirmation.  Returns the desktop-list, a
 list of lists, with one row per buffer, where each row is a
 list (in this order) of: name, path, mode, and the
-desktop-create-buffer call.  See \\[desktop-recover-desktop-list-doc]."
+desktop-create-buffer call.  See \\[desktop-recover-doc-desktop-list]."
 ;;  (interactive) ;; DEBUG only
   (let* ((dcb-string "(desktop-create-buffer")
          (dcb-pattern (format "^[ \t]*?%s[ \t]" dcb-string))
