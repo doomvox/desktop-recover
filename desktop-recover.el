@@ -204,18 +204,6 @@ Note: this flag is respected by desktop-recover.el code, not desktop.el.")
 (defvar desktop-buffer-ok-count)
 (defvar desktop-buffer-fail-count)
 
-(defun desktop-recover-setup ()
-  "The usual desktop-recover set-up operations."
-  ;; Turning desktop.el off (we use it indirectly)
-  (desktop-save-mode -1)
-  ;; This sounds good, but does it even do anything?
-  (setq desktop-load-locked-desktop t)
-  ;; Re-binding, so that we can tell if exit was clean.
-  (define-key ctl-x-map "\C-c" 'desktop-recover-save-buffers-kill-terminal)
-  ;; Brings up the interactive buffer restore menu
-  (desktop-recover-interactive)
-  )
-
 ;;=======
 ;; routines common to save/read operations
 
@@ -315,7 +303,7 @@ emacs died."
          )
     retval))
 
-;;======================
+;;========
 ;; saving desktop files (with dangler management)
 (defun desktop-recover-do-saves-automatically ()
   "Makes the desktop saved automatically using the auto-save-hook.
@@ -530,7 +518,7 @@ follows the convention for dynamic display buffers: it must
 begin with a leading asterix."
   (string= (substring buffer-name 0 1) "*"))
 
-;;======================
+;;========
 ;; read desktop files
 
 ;; desktop.el just loads the .emacs-desktop files (which are elisp code)
