@@ -54,8 +54,9 @@
 ;;   dummy variables with documentation attached
 
 (defvar desktop-recover-doc-toc ""
-  "Several variables are defined here just to have a convenient
-place to attach documentation strings:\n
+  "The table-of-contents for the documentation.
+Several variables \(including this one\) are defined just
+to have a convenient place to attach documentation strings:\n
 Introduction:         `desktop-recover-doc-desktop'
 Basic How-To:         `desktop-recover-doc-howto'
 Just a convenience:   `desktop-recover-doc-philosophy'
@@ -66,15 +67,17 @@ Internal documentation:
 ")
 
 (defvar desktop-recover-doc-desktop ""
-  "We use the term \"desktop\" to mean the emacs desktop, i.e. the
-state of all the current buffers that are open at a given moment
-\(except for the dynamic buffers-- usually named with a leading
-asterix-- and a few other odds and ends\).  This is the terminology
-used by the package \"desktop.el\" \(already standard with GNU
-emacs\).  This package, \"desktop-recover.el\", works with
-\"desktop.el\", using it for interactive recovery of emacs state
-\(e.g. for crash recovery, primarily for people working over flaky
-network connections\).\n For other notes, see `desktop-recover-doc-toc'.")
+  "We use the term \"desktop\" to mean the emacs desktop,
+i.e. the state of all the current buffers that are open at a
+given moment \(except for the dynamic buffers-- usually with
+names \"*surrounded by asterix*\"-- and a few other odds and
+ends\).  This is the terminology used by the package
+\"desktop.el\" \(already standard with GNU emacs\).  This
+package, \"desktop-recover.el\", works with \"desktop.el\", using
+it for interactive recovery of emacs state \(e.g. for crash
+recovery, primarily for people working over flaky network
+connections\).\n For other notes, see
+`desktop-recover-doc-toc'.")
 ;; it's also likely that this can be used with project-root to
 ;; implement project-specific desktops.
 
@@ -109,23 +112,22 @@ state of the emacs \"desktop\", it carefully overrides some
 features.  By itself, desktop.el is very cautious about keeping
 desktop files locked, so that it can warn the user if it looks
 like two different emacs instances are trying to use the same
-file.  It also dynamically searches likely locations to find a
-desktop file, and it makes it hard to shut-off that behavior (the
-handling of the `desktop-dirname' variable is complicated).  This
-package, desktop-recover.el takes a somewhat different approach:
+file.  It also dynamically searches several likely locations to
+find a desktop file, making it's behavior a little unpredictable.
+This package, desktop-recover.el takes a somewhat different approach:
 the presumption is that there is nothing critical about saving
 desktop state; it's just a convenience feature, and so there's no
 good reason to bother the user about confirmations.  The basic
-desktop-recover save primitive is \\[desktop-recover-force-save]:
-it just ignores any desktop.el locks.\n
+desktop-recover save primitive is \\[desktop-recover-force-save],
+which just ignores any desktop.el locks.\n
 Further, desktop-recover.el uses a much simpler directory search:
 it has a single variable that can be set to tell it where to save
 to: `desktop-recover-location'.  This defaults to the value of
 `user-emacs-directory', which is typically \"~/.emacs.d\".  To
 get desktop.el's dynamically determined `desktop-dirname'
 behavior, `desktop-recover-location' can be set to nil,\n
-In order to supress saves, desktop.el code sets the
-`desktop-dirname' to nil, but in contrast, the desktop-recover.el
+In order to supress saves, desktop.el code internally sets the
+`desktop-dirname' to nil, in contrast, the desktop-recover.el
 has the variable `desktop-recover-suppress-save', and also the
 function \\[desktop-recover-stop-automatic-saves].\n
 For other notes, see `desktop-recover-doc-toc'.")
@@ -133,16 +135,17 @@ For other notes, see `desktop-recover-doc-toc'.")
 (defvar desktop-recover-doc-dangling-buffers ""
   "We use \"dangling buffers\" to mean buffers without associated files.
 Typically we will exclude the special display buffers (which
-usually begin with an asterix), and possibly dired buffers, and
-so on.  We're concerned here with buffers used for temporary
+usually begin with an asterix), as well as any dired and shell
+buffers.  We're concerned here with buffers used for temporary
 notes that might've been prematurely lost by an emacs crash
-\(e.g. due to a broken connection\).\n Along with the automated
+\(e.g. due to a broken connection\). Along with the automated
 desktop save feature, we will save these dangling buffers to
 temporary files, making them a little less ephemeral, though not
-as permanent as ordinary files.\n Nothing else should be saved to
+as permanent as ordinary files. Nothing else should be saved to
 this special temp directory, because we'll use this location
 later to distinguish dangling buffers even after they've been
-saved.  This way a clean exit from emacs can skip loading them by default.
+saved.  This way, after a clean exit from emacs we can skip
+loading them by default next time.\n
 For other notes, see `desktop-recover-doc-toc'.")
 
 (defvar desktop-recover-doc-desktop-list ""
@@ -213,7 +216,7 @@ Conditions directory paths for portability and robustness.
 If the directory does not yet exist, it will be created.\n
 Some examples (note that this always adds a trailing slash):
  '~/tmp'             => '/home/doom/tmp/'
- '~/tmp/../bin/test' => '/home/bin/test/'\n
+ '~/tmp/../bin/test' => '/home/doom/bin/test/'\n
 Relative paths are converted to absolute, using the current
 `default-directory' setting, unless specified otherwise with the
 ROOT option. As a side-effect: this converts the empty string into
@@ -262,8 +265,8 @@ Note: \\[desktop-recover-location] sets `desktop-dirname' as a side-effect."
 ;; managing the "clean save flag file"
 
 (defun desktop-recover-flag-clean-exit ()
-  "Create the file that indicates that we're doing a clean exit.
-Actually, it flags the fact that we *tried* to exit cleanly, since
+  "Create a flag file to indicate that we've done a clean exit.
+Actually, this just flags the fact that we tried to exit cleanly:
 there's no easy way to check if all saves were completed before
 emacs died."
   (interactive)
@@ -477,17 +480,19 @@ See: `desktop-recover-doc-dangling-buffers'"
 This ensures you will not have any questions getting in the way
 about modification times, etc.  If DIRNAME is not given, defaults
 to `desktop-recover-location' or the current `desktop-dirname' in
-that order."
+that order.  See: `desktop-recover-doc-philosophy'."
    (let* ((location (desktop-recover-location dirname))
           )
      (cond ((not desktop-recover-suppress-save)
-            (setq desktop-dirname (file-name-as-directory (expand-file-name location)))
+            (setq desktop-dirname
+                  (file-name-as-directory (expand-file-name location)))
             (desktop-release-lock) ;; just being neat
             (desktop-remove)
             (desktop-save location)
             )
            (t
-            (message "Desktop save skipped, because desktop-recover-suppress-save is set"))
+            (message
+             "Desktop save skipped, because desktop-recover-suppress-save is set"))
            )))
 
 ;;--------
@@ -526,8 +531,9 @@ begin with a leading asterix."
 (defun desktop-recover-interactive (&optional dirname)
   "Read the .emacs-desktop file, bring up menu to approve buffer restoration."
   (interactive "Dload desktop file from:")
-  (desktop-save-mode -1) ;; Turning desktop.el off (we'll use it indirectly)
+  (desktop-save-mode -1)               ;; Turn desktop.el off, we use indirectly
   (setq desktop-load-locked-desktop t) ;; Sounds good. Does it do anything?
+  (setq inhibit-startup-screen t)      ;; Keep splash screen out of the way.
   (let* ((desktop-file (desktop-recover-file-path dirname))
          ;; an .emacs-desktop file is in sections labeled like so:
          (global-section-marker ";; Global section")
@@ -573,13 +579,12 @@ begin with a leading asterix."
 (defun desktop-parse-buffer-section (buffer-section)
   "Associate file system names with desktop-create-buffer code.
 Parses the 'buffer section' of a .emacs.desktop file (passed in
-as the string BUFFER-SECTION) subdividing it into
-desktop-create-buffer function calls, and picking out names from
-them to use for user confirmation.  Returns the desktop-list, a
-list of lists, with one row per buffer, where each row is a
-list (in this order) of: name, path, mode, and the
-desktop-create-buffer call.  See \\[desktop-recover-doc-desktop-list]."
-;;  (interactive) ;; DEBUG only
+as the string BUFFER-SECTION) subdividing it into desktop-create-buffer
+function calls, and picking out names from them to use for user
+confirmation.  Returns the desktop-list, a list of lists, with
+one row per buffer, where each row is a list (in this order) of:
+name, path, mode, and the desktop-create-buffer call.
+See \\[desktop-recover-doc-desktop-list]."
   (let* ((dcb-string "(desktop-create-buffer")
          (dcb-pattern (format "^[ \t]*?%s[ \t]" dcb-string))
          (dcb-list)
@@ -602,9 +607,8 @@ desktop-create-buffer call.  See \\[desktop-recover-doc-desktop-list]."
                             (substring-no-properties item)))
                   (split-string buffer-section dcb-pattern t)))
     (dolist (dcb-code dcb-list)
-      ;; parse dcb-code as a list
+      ;; the dcb-code handled as a list of lines
       (setq dcb-lines (split-string dcb-code "\n" t))
-      ;;
       (setq file-format (car (cdr (split-string (nth 0 dcb-lines) " " t))))
       (setq file-name (desktop-recover-clean-string (nth 1 dcb-lines)))
       (setq name (desktop-recover-clean-string (nth 2 dcb-lines)))
@@ -614,6 +618,11 @@ desktop-create-buffer call.  See \\[desktop-recover-doc-desktop-list]."
       (cond ((string= mode "dired-mode")
              (setq first-misc (desktop-recover-snag-first-item misc))
              (setq path first-misc))
+            ((string= mode "Info-mode")
+             (setq first-misc (desktop-recover-snag-first-item misc))
+             (let ((info-name (nth 1 (eval (read misc)))))
+               (setq name (concat name " " info-name))
+               ))
             (t
              (setq path file-name)
              ))
@@ -636,37 +645,46 @@ also any leading single-quotes."
         (strip-lead-quote-pattern      "^\"*\\(.*\\)")
         (strip-trail-quote-pattern     "\\(.*?\\)\"*$")
         )
-    (setq string
-          (cond ((string-match strip-lead-space-pattern string)
-                 (match-string 1 string))
-                (t
-                 string)))
-    (setq string
-          (cond ((string-match strip-trail-space-pattern string)
-                 (match-string 1 string))
-                (t
-                 string)))
-    (setq string
-          (cond ((string-match strip-lead-apostrophe-pattern string)
-                 (match-string 1 string))
-                (t
-                 string)))
-    (setq string
-          (cond ((string-match strip-lead-quote-pattern string)
-                 (match-string 1 string))
-                (t
-                 string)))
-    (setq string
-          (cond ((string-match strip-trail-quote-pattern string)
-                 (match-string 1 string))
-                (t
-                 string)))
+    (cond (string  ;; skip everything if string is nil
+       (setq string
+              (cond ((string-match strip-lead-space-pattern string)
+                     (match-string 1 string))
+                    (t
+                     string)))
+      (setq string
+            (cond ((string-match strip-trail-space-pattern string)
+                   (match-string 1 string))
+                  (t
+                   string)))
+      (setq string
+            (cond ((string-match strip-lead-apostrophe-pattern string)
+                   (match-string 1 string))
+                  (t
+                   string)))
+      (setq string
+            (cond ((string-match strip-lead-quote-pattern string)
+                   (match-string 1 string))
+                  (t
+                   string)))
+      (setq string
+            (cond ((string-match strip-trail-quote-pattern string)
+                   (match-string 1 string))
+                  (t
+                   string)))
+      ;; odd hack:  can we have files and such named "nil" now?
+      (setq string
+            (cond ((string-match "^nil$" string)
+                   nil)
+                  (t
+                   string)))
+      ))
     string))
 
 (defun desktop-recover-snag-first-item (list-string)
   "Get's the first item out of the list stored in LIST-STRING.
-Intended to deal with the 'desktop-buffer-misc' field of a desktop-create-buffer call.
-Which may look something like:
+Intended to deal with the 'desktop-buffer-misc' field of a
+desktop-create-buffer call.
+This may look something like:
   '(\"/home/doom/End/Pit/\")
 Note: This is not just a wrapper around \"car\", it does the
 conversion from string to list first."
@@ -699,7 +717,10 @@ If run interactively, will re-display the most-recently used desktop-list."
       (forward-line 1)
       (deactivate-mark)
       (desktop-recover-mode)
+      (setq truncate-lines t)
       (setq buffer-read-only 't)
+      (goto-char (point-min))
+      (forward-line 1)
       )
     ;; make sure auto desktop saves don't happen until after recovery.
     (desktop-recover-stop-automatic-saves)
@@ -816,7 +837,7 @@ If run interactively, will re-display the most-recently used desktop-list."
   "Symbol used to show a buffer will be reloaded \(typically \"*\"\).")
 
 (defvar desktop-recover-auto-save-marker "#"
-  "Symbol used to show that a more recent auto-save file exists \(typically \"#\"\).")
+  "Symbol to show that a more recent auto-save file exists \(typically \"#\"\).")
 
 (defvar desktop-recover-unmarker " "
   "Character used to erase either of the above markers (typically a space).")
@@ -864,21 +885,29 @@ If run interactively, will re-display the most-recently used desktop-list."
                   (t
                    desktop-recover-unmarker)
                   ))
+
+      (message "desktop-recover-build-menu-contents: %s %s %s" path name mode);; DEBUG
+
       (let ((visible-path path)
             (visible-name name)
             )
-         (cond (;; looks like a directory
-                (string= mode "dired-mode")
-                (setq visible-path
-                      (replace-regexp-in-string "[^/]*/$" "" visible-path))
-                (setq visible-path
-                      (replace-regexp-in-string "/$" "" visible-path))
-                )
-               (t ;; not a directory
-                (setq visible-path (file-name-directory path))
-                (setq visible-path
-                      (replace-regexp-in-string "/$" "" visible-path))
-                ))
+      ;; TODO can't get this first case to trigger if it's nil.  WTF????
+        (cond ((not path) ;; an odd buffer (e.g. "*info*")
+               (setq visible-path "")
+               (message "looks like a nil path: %s" path)
+               )
+              ((string= mode "dired-mode") ;; looks like a directory
+               (setq visible-path
+                     (replace-regexp-in-string "[^/]*/$" "" visible-path))
+               (setq visible-path
+                     (replace-regexp-in-string "/$" "" visible-path))
+               )
+              (t ;; not a directory
+               (setq visible-path (file-name-directory path))
+               (setq visible-path
+                     (replace-regexp-in-string "/$" "" visible-path))
+               ))
+
         (setq visible-path
               (replace-regexp-in-string
                (concat "^" (getenv "HOME"))
@@ -909,7 +938,7 @@ If run interactively, will re-display the most-recently used desktop-list."
   "Choose an appropriate face for STRING, given the MODE name.
 Some modes are special cases with particular faces associated
 with them, for the others, we look at the first character
-of the mode name, and use it to choose a more generic face."
+of the mode name, and use it to choose a generic face."
   (cond ((string= mode "dired-mode")
          (put-text-property 0 (length string)
                             'face 'desktop-recover-directory-face
@@ -981,37 +1010,50 @@ of the mode name, and use it to choose a more generic face."
   "Examine RECORD to determine if this buffer should be reloaded by default.
 A file should not be re-loaded if was an automatically saved temporary
 buffer and emacs exited cleanly.  RECORD should be a list of
-name, path, mode and dcb-code."
-  (let* ((tmp-dir (desktop-recover-fixdir desktop-recover-tmp-dir))
+name, path, mode and dcb-code.  Always returns nil if path is nil."
+  (let* ((tmp-dir   (desktop-recover-fixdir desktop-recover-tmp-dir))
          ;; unpack the record
-         (name     (nth 0 record))
-         (path     (nth 1 record)) ;; eval don't do trick.  properties prob? TODO
-         (mode     (nth 2 record))
-         (dcb-code (nth 3 record))
-         (location  (desktop-recover-fixdir (file-name-directory path)))
-         ;; return value
-         (recover-p
-          (cond ((string= location tmp-dir) ;; this is a preserved dangler
-                 (cond ((desktop-recover-clean-exit-p)
-                        nil)
-                       (t
-                        t)))
-                (t t)))
+         (name      (nth 0 record))
+         (path      (nth 1 record))
+         (mode      (nth 2 record))
+         (dcb-code  (nth 3 record))
+         (location)
+         (recover-p) ;; return value
          )
+    ;; just return nil if path is nil
+    (unless (not path)
+        (progn
+           (setq location (desktop-recover-fixdir (file-name-directory path)))
+           (setq recover-p
+                 (cond ((string= location tmp-dir) ;; this is a preserved dangler
+                        (cond ((desktop-recover-clean-exit-p)
+                               nil)
+                              (t
+                               t)))
+                       (t t)))
+           )
+      )
     recover-p))
 
 (defun desktop-recover-newer-auto-save (path)
   "Given PATH (full path and file name) check for newer auto-save file."
-  (let* (
-         (path (desktop-recover-clean-string path))
-         (name (file-name-nondirectory path)) ;; could just pass this in also
-         (loc  (file-name-directory path))
-         (a-s-name (format "#%s#" name))
-         (auto-save (concat loc a-s-name))
-         )
-    ;; if autosave does not exist, this is nil
-    (file-newer-than-file-p auto-save path)
-    ))
+  (cond
+   (path
+    (let* (
+           (path (desktop-recover-clean-string path))
+           (name (cond (path
+                        (file-name-nondirectory path)))) ;; could just pass this in also
+           (loc  (cond (path
+                        (file-name-directory path))))
+           (a-s-name (format "#%s#" name))
+           (auto-save (concat loc a-s-name))
+           )
+      ;; if autosave does not exist, this is nil
+      (file-newer-than-file-p auto-save path)
+      ))
+   (t
+    nil)
+   ))
 
 ;;--------
 ;; the controller: a simple mode to handle selection of buffers to be restored.
@@ -1069,8 +1111,12 @@ with auto-save file recovery, if that's indicated."
                         (desktop-buffer-fail-count 0)
                         (owner (desktop-owner))
                         )
-                     ;; do it to it
-                     (eval (read dcb-code))
+                     ;; do it to it (and keep going if there are problems with one)
+                     (condition-case nil
+                         (eval (read dcb-code))
+                       (error
+                        (message "Problem recovering %s %s" name path)))
+
                      (cond ((not (string-match "/$" path)) ;; not a directory
                             ;; check for auto-save file, recover if indicated
                             (cond ((and
