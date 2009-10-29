@@ -573,7 +573,7 @@ begin with a leading asterix."
              (setq buffer-section (buffer-substring-no-properties beg end)))
            (eval (read global-section))
            (setq desktop-list
-                 (desktop-parse-buffer-section buffer-section))
+                 (desktop-recover-parse-buffer-section buffer-section))
            ;; display the desktop-list in an interactive selection buffer
            (desktop-recover-show-menu desktop-list)
            )
@@ -582,13 +582,11 @@ begin with a leading asterix."
           )
     ))
 
-;; There are two places we can look for the format version:
+;; There are two places we can look for the desktop file format version:
 ;; (1) the comment:
-;; Desktop file format version 206
+;;      ;; Desktop file format version 206
 ;; (2) each dcb call:
-;; Alternately look here:
-;; (desktop-create-buffer 206
-
+;;     (desktop-create-buffer 206
 (defun desktop-recover-desktop-version-format ()
   "Find the desktop file format version number.
 Presumes the current buffer it a desktop file \(typically \".emacs.desktop\"\).
@@ -639,7 +637,7 @@ looks funny."
              nil)
             ))))
 
-(defun desktop-parse-buffer-section (buffer-section)
+(defun desktop-recover-parse-buffer-section (buffer-section)
   "Associate file system names with desktop-create-buffer code.
 Parses the 'buffer section' of a .emacs.desktop file (passed in
 as the string BUFFER-SECTION) subdividing it into desktop-create-buffer
