@@ -44,7 +44,7 @@
 (require 'desktop)
 (require 'thingatpt)
 
-(defconst desktop-recover-version "0.91"
+(defconst desktop-recover-version "0.92"
   "The version number of the installed desktop-recover.el package.")
 
 
@@ -193,6 +193,10 @@ circumstances."
 )
 (put 'desktop-recover-tmp-dir 'risky-local-variable t)
 
+(defvar desktop-recover-compatible-desktop-versions '(206)
+  "List of compatible desktop.el desktop file format versions.
+These are the formats that we know desktop-recover.el can work with.")
+
 (defvar desktop-recover-buffer-name "*Desktop Buffer Restore Menu*"
   "Buffer name for the desktop restore menu.")
 
@@ -231,7 +235,7 @@ ROOT option. As a side-effect: this converts the empty string into
     location))
 
 ;; This is used by: desktop-recover-force-save & desktop-recover-file-path
-;; (and hence: desktop-recover-interactive)
+;; (and thus indirectly by: desktop-recover-interactive)
 (defun desktop-recover-location (&optional dirname)
   "The standard behavior for choosing the desktop save location.
 If DIRNAME is not given, defaults to `desktop-recover-location'
@@ -244,7 +248,7 @@ makes sure that it will exist. Sets `desktop-dirname' as a side-effect."
                       (and (< 0 (length dirname)) dirname)
                       desktop-recover-location
                       desktop-dirname))))
-    (setq desktop-dirname location) ;; makes sure desktop.el knows what we're doing
+    (setq desktop-dirname location) ;; makes sure desktop.el knows, too
     ))
 
 ;; This is used by: desktop-recover-interactive
@@ -320,14 +324,13 @@ we have exited cleanly."
 (defun desktop-recover-stop-automatic-saves ()
   "Stops the desktop from being saved automatically via the auto-save-hook."
   (remove-hook 'auto-save-hook 'desktop-recover-save-with-danglers)
-  ;; TODO should this really be done here?  Seems neater...
   (remove-hook 'kill-emacs-hook 'desktop-recover-clean-up-for-exit))
 
 (defun desktop-recover-clean-up-for-exit ()
   "For doing a \"clean\" exit.
 Intended to be attached to the kill-emacs-hook.
 Saves off the desktop and creates the clean exit flag file."
-  (desktop-recover-stop-automatic-saves) ;; is this really needed?
+  ;; (desktop-recover-stop-automatic-saves) ;; TODO is this needed at all?
   (desktop-recover-save-with-danglers)
   (desktop-recover-flag-clean-exit))
 
@@ -346,11 +349,12 @@ See \\[desktop-recover-do-saves-automatically]."
 
 (defun desktop-recover-save-with-danglers ()
   "Save desktop preserving buffers that have no associated files.
-Works by saving these danglers to a standard tmp directory, then
-lets desktop.el save them along with the other open files.  After
+Works by saving these danglers to a standard temp directory, then
+uses desktop.el to save them along with the other open files.  After
 re-starting emacs, you should then have buffers corresponding to
 the old dangling buffers (though now they'll be associated with
-files in the tmp location).  See: `desktop-recover-doc-dangling-buffers'"
+files in the temp location).  The temp location is specified by
+`desktop-recover-tmp-dir'. See: `desktop-recover-doc-dangling-buffers'"
   (interactive)
   (let* ((preserve-buffer (current-buffer))
          (temp-loc
@@ -492,7 +496,7 @@ that order.  See: `desktop-recover-doc-philosophy'."
             )
            (t
             (message
-             "Desktop save skipped, because desktop-recover-suppress-save is set"))
+             "Desktop save skipped: desktop-recover-suppress-save is set"))
            )))
 
 ;;--------
@@ -526,8 +530,9 @@ begin with a leading asterix."
 ;;========
 ;; read desktop files
 
-;; desktop.el just loads the .emacs-desktop files (which are elisp code)
-;; I want to deal with each file conditionally, so I need to parse it myself
+;; desktop.el's desktop-read just loads the whole the .emacs-desktop
+;; file (which contains elisp), but to handle each file recovery
+;; conditionally, we need to parse the .emacs-desktop ourselves
 (defun desktop-recover-interactive (&optional dirname)
   "Read the .emacs-desktop file, bring up menu to approve buffer restoration."
   (interactive "Dload desktop file from:")
@@ -549,8 +554,9 @@ begin with a leading asterix."
          )
     (cond ((file-exists-p desktop-file)
            (find-file desktop-file)
+           ;; check file format version, warn if looks wrong.
+           (desktop-recover-desktop-version-format)
            ;; parse into global and buffer sections
-           ;; TODO also need to check the file format version: warn if it's wrong.
            (goto-char (point-min))
            (re-search-forward global-section-pattern)
            (forward-line 1)
@@ -575,6 +581,63 @@ begin with a leading asterix."
            (desktop-recover-do-saves-automatically))
           )
     ))
+
+;; There are two places we can look for the format version:
+;; (1) the comment:
+;; Desktop file format version 206
+;; (2) each dcb call:
+;; Alternately look here:
+;; (desktop-create-buffer 206
+
+(defun desktop-recover-desktop-version-format ()
+  "Find the desktop file format version number.
+Presumes the current buffer it a desktop file \(typically \".emacs.desktop\"\).
+Tries to find the version number in one of two places \(1\) the comment
+near the top of the file, or \(2\) the first desktop-create-buffer call.
+Returns the best version of the two, or nil only if it can't find any
+version on the compatibility list.  Issues warning messages if anything
+looks funny."
+  (interactive) ;; DEBUG
+  (let* (compatible-versions desktop-recover-compatible-desktop-versions)
+    (scraped-version-1)
+    (scraped-version-2)
+    (ok-1)
+    (ok-2)
+    (version-1-pattern ";; Desktop file format version \([0-9]+\)")
+    (version-2-pattern "(desktop-create-buffer \([0-9]+\)")
+    )
+  (save-excursion
+    (goto-char (point-min))
+    (if (re-search-forward version-1-pattern nil t)
+        (setq scraped-version-1 (string-to-number (match-string 1))))
+    (goto-char (point-min))
+    (if (re-search-forward version-2-pattern nil t)
+        (setq scraped-version-2 (string-to-number (match-string 1))))
+    (setq ok-1
+          (member scraped-version-1 compatible-versions))
+    (setq ok-2
+          (member scraped-version-2 compatible-versions))
+    (cond ((and (and ok-1 ok-2) (equal scraped-version-1 scraped-version-2))
+           ;; all ok, return the version
+           scraped-version-1)
+          ((and (and ok-1 ok-2) (not (equal scraped-version-1 scraped-version-2)))
+           (message "Two desktop file format versions found, but both okay: %d %d"
+                    scraped-version-1 scraped-version-2)
+           ;; return *a* version
+           scraped-version-1)
+          ((or ok-1 ok-2)
+           (message "Ambiguous desktop file format version check: only one looks right: %d %d."
+                    scraped-version-1 scraped-version-2)
+           ;; return the version that looks right
+           (cond (ok-1
+                  scraped-version-1)
+                 (ok-2
+                  scraped-version-2)))
+          (t
+           (message "Desktop file version not on compatibility list for desktop-recover.el: %d %d"
+                    scraped-version-1 scraped-version-2)
+           nil)
+          )))
 
 (defun desktop-parse-buffer-section (buffer-section)
   "Associate file system names with desktop-create-buffer code.
@@ -852,7 +915,6 @@ If run interactively, will re-display the most-recently used desktop-list."
         (unmarker desktop-recover-unmarker) ;; " "
         (auto-save-mark desktop-recover-auto-save-marker) ;; "#"
         (line "")
-        ;; (line-fmt " %1s %-33s%-42s %1s")
         (line-fmt (desktop-recover-menu-format desktop-list))
         (marker-field)
         (auto-save-field)
@@ -885,14 +947,10 @@ If run interactively, will re-display the most-recently used desktop-list."
                   (t
                    desktop-recover-unmarker)
                   ))
-
-      (message "desktop-recover-build-menu-contents: %s %s %s" path name mode);; DEBUG
-
       (let ((visible-path path)
             (visible-name name)
             )
-      ;; TODO can't get this first case to trigger if it's nil.  WTF????
-        (cond ((not path) ;; an odd buffer (e.g. "*info*")
+        (cond ((not path) ;; must be an odd buffer (e.g. "*info*")
                (setq visible-path "")
                (message "looks like a nil path: %s" path)
                )
@@ -907,7 +965,6 @@ If run interactively, will re-display the most-recently used desktop-list."
                (setq visible-path
                      (replace-regexp-in-string "/$" "" visible-path))
                ))
-
         (setq visible-path
               (replace-regexp-in-string
                (concat "^" (getenv "HOME"))
@@ -1042,7 +1099,7 @@ name, path, mode and dcb-code.  Always returns nil if path is nil."
     (let* (
            (path (desktop-recover-clean-string path))
            (name (cond (path
-                        (file-name-nondirectory path)))) ;; could just pass this in also
+                        (file-name-nondirectory path))))
            (loc  (cond (path
                         (file-name-directory path))))
            (a-s-name (format "#%s#" name))
