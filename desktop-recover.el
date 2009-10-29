@@ -582,61 +582,6 @@ begin with a leading asterix."
           )
     ))
 
-;; There are two places we can look for the desktop file format version:
-;; (1) the comment:
-;;      ;; Desktop file format version 206
-;; (2) each dcb call:
-;;     (desktop-create-buffer 206
-(defun desktop-recover-desktop-version-format ()
-  "Find the desktop file format version number.
-Presumes the current buffer it a desktop file \(typically \".emacs.desktop\"\).
-Tries to find the version number in one of two places \(1\) the comment
-near the top of the file, or \(2\) the first desktop-create-buffer call.
-Returns the best version of the two, or nil only if it can't find any
-version on the compatibility list.  Issues warning messages if anything
-looks funny."
-  ;; (interactive) ;; DEBUG
-  (let* ((compatible-versions desktop-recover-compatible-desktop-versions)
-         (scraped-version-1)
-         (scraped-version-2)
-         (ok-1)
-         (ok-2)
-         (version-1-pattern ";; Desktop file format version \\([0-9]+\\)")
-         (version-2-pattern "(desktop-create-buffer \\([0-9]+\\)")
-         )
-    (save-excursion
-      (goto-char (point-min))
-      (if (re-search-forward version-1-pattern nil t)
-          (setq scraped-version-1 (string-to-number (match-string-no-properties 1))))
-      (goto-char (point-min))
-      (if (re-search-forward version-2-pattern nil t)
-          (setq scraped-version-2 (string-to-number (match-string-no-properties 1))))
-      (setq ok-1
-            (member scraped-version-1 compatible-versions))
-      (setq ok-2
-            (member scraped-version-2 compatible-versions))
-      (cond ((and (and ok-1 ok-2) (equal scraped-version-1 scraped-version-2))
-             ;; all ok, return the version
-             scraped-version-1)
-            ((and (and ok-1 ok-2) (not (equal scraped-version-1 scraped-version-2)))
-             (message "Two desktop file format versions found, but both okay: %d %d"
-                      scraped-version-1 scraped-version-2)
-             ;; return *a* version
-             scraped-version-1)
-            ((or ok-1 ok-2)
-             (message "Ambiguous desktop file format version check: only one looks right: %d %d."
-                      scraped-version-1 scraped-version-2)
-             ;; return the version that looks right
-             (cond (ok-1
-                    scraped-version-1)
-                   (ok-2
-                    scraped-version-2)))
-            (t
-             (message "Desktop file version not on compatibility list for desktop-recover.el: %d %d"
-                      scraped-version-1 scraped-version-2)
-             nil)
-            ))))
-
 (defun desktop-recover-parse-buffer-section (buffer-section)
   "Associate file system names with desktop-create-buffer code.
 Parses the 'buffer section' of a .emacs.desktop file (passed in
@@ -753,6 +698,61 @@ conversion from string to list first."
          (first-item (car list))
          )
     first-item))
+
+;; There are two places we can look for the desktop file format version:
+;; (1) the comment near the top of the file:
+;;      ;; Desktop file format version 206
+;; (2) on each dcb call:
+;;     (desktop-create-buffer 206
+(defun desktop-recover-desktop-version-format ()
+  "Find the desktop file format version number.
+Presumes the current buffer it a desktop file \(typically \".emacs.desktop\"\).
+Tries to find the version number in one of two places \(1\) the comment
+near the top of the file, or \(2\) the first desktop-create-buffer call.
+Returns the best version of the two, or nil only if it can't find any
+version on the compatibility list.  Issues warning messages if anything
+looks funny."
+  ;; (interactive) ;; DEBUG
+  (let* ((compatible-versions desktop-recover-compatible-desktop-versions)
+         (scraped-version-1)
+         (scraped-version-2)
+         (ok-1)
+         (ok-2)
+         (version-1-pattern ";; Desktop file format version \\([0-9]+\\)")
+         (version-2-pattern "(desktop-create-buffer \\([0-9]+\\)")
+         )
+    (save-excursion
+      (goto-char (point-min))
+      (if (re-search-forward version-1-pattern nil t)
+          (setq scraped-version-1 (string-to-number (match-string-no-properties 1))))
+      (goto-char (point-min))
+      (if (re-search-forward version-2-pattern nil t)
+          (setq scraped-version-2 (string-to-number (match-string-no-properties 1))))
+      (setq ok-1
+            (member scraped-version-1 compatible-versions))
+      (setq ok-2
+            (member scraped-version-2 compatible-versions))
+      (cond ((and (and ok-1 ok-2) (equal scraped-version-1 scraped-version-2))
+             ;; all ok, return the version
+             scraped-version-1)
+            ((and (and ok-1 ok-2) (not (equal scraped-version-1 scraped-version-2)))
+             (message "Two desktop file format versions found, but both okay: %d %d"
+                      scraped-version-1 scraped-version-2)
+             ;; return *a* version
+             scraped-version-1)
+            ((or ok-1 ok-2)
+             (message "Ambiguous desktop file format version check: only one looks right: %d %d."
+                      scraped-version-1 scraped-version-2)
+             ;; return the version that looks right
+             (cond (ok-1
+                    scraped-version-1)
+                   (ok-2
+                    scraped-version-2)))
+            (t
+             (message "Desktop file version not on compatibility list for desktop-recover.el: %d %d"
+                      scraped-version-1 scraped-version-2)
+             nil)
+            ))))
 
 (defvar desktop-recover-last-desktop-list ()
   "A cache of the desktop-list used by \\[desktop-recover-show-menu].")
