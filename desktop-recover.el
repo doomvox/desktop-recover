@@ -844,6 +844,47 @@ If run interactively, will re-display the most-recently used desktop-list."
   "Face used for displaying sh buffer entries in the desktop-recover menu."
   :group 'desktop-recover-faces)
 
+;; Experimental macro for generating faces
+(defmacro desktop-recover-make-a-face (name char color1 color2)
+  `(defface ,name
+  '((((class color)
+      (background light))
+     (:foreground ,color1))
+    (((class color)
+      (background dark))
+     (:foreground ,color2)))
+  ,(format "Face used for modes beginning with %s." char)
+  :group 'desktop-recover-faces
+  ))
+
+(desktop-recover-make-a-face desktop-recover-a-face "a" "DarkOrange4" "DarkOrange1")
+(desktop-recover-make-a-face desktop-recover-b-face "b" "orange4" "orange1")
+(desktop-recover-make-a-face desktop-recover-c-face "c" "gold4" "gold1")
+(desktop-recover-make-a-face desktop-recover-d-face "d" "DarkOrchid4" "DarkOrchid1")
+(desktop-recover-make-a-face desktop-recover-f-face "e" "chartreuse4" "chartreuse1")
+(desktop-recover-make-a-face desktop-recover-f-face "f" "green4" "green1")
+(desktop-recover-make-a-face desktop-recover-g-face "g" "SpringGreen4" "SpringGreen1")
+(desktop-recover-make-a-face desktop-recover-h-face "h" "cyan4" "cyan1")
+(desktop-recover-make-a-face desktop-recover-i-face "i" "OliveDrab4" "OliveDrab1")
+(desktop-recover-make-a-face desktop-recover-j-face "j" "DeepSkyBlue4" "DeepSkyBlue1")
+(desktop-recover-make-a-face desktop-recover-k-face "k" "blue4" "blue1")
+(desktop-recover-make-a-face desktop-recover-l-face "l" "magenta4" "magenta1")
+(desktop-recover-make-a-face desktop-recover-m-face "m" "DarkOliveGreen4" "DarkOliveGreen1")
+(desktop-recover-make-a-face desktop-recover-n-face "n" "PaleGreen4" "PaleGreen1")
+(desktop-recover-make-a-face desktop-recover-o-face "o" "DarkSeaGreen4" "DarkSeaGreen1")
+(desktop-recover-make-a-face desktop-recover-p-face "p" "DeepPink4" "DeepPink1")
+(desktop-recover-make-a-face desktop-recover-q-face "q" "SeaGreen4" "SeaGreen1")
+(desktop-recover-make-a-face desktop-recover-r-face "r" "aquamarine4" "aquamarine1")
+(desktop-recover-make-a-face desktop-recover-s-face "s" "DarkSlateGray4" "DarkSlateGray1")
+(desktop-recover-make-a-face desktop-recover-t-face "t" "coral4" "coral1")
+(desktop-recover-make-a-face desktop-recover-u-face "u" "salmon4" "salmon1")
+(desktop-recover-make-a-face desktop-recover-v-face "v" "LightSalmon4" "LightSalmon1")
+(desktop-recover-make-a-face desktop-recover-w-face "w" "CadetBlue4" "CadetBlue1")
+(desktop-recover-make-a-face desktop-recover-x-face "x" "chocolate4" "chocolate1")
+(desktop-recover-make-a-face desktop-recover-y-face "y" "PeachPuff4" "PeachPuff1")
+(desktop-recover-make-a-face desktop-recover-z-face "z" "tan4" "tan1")
+
+;; TODO the following are probably vestigial now, replaced by the system above
 (defface desktop-recover-a-to-d-face
   '((((class color)
       (background light))
@@ -851,7 +892,7 @@ If run interactively, will re-display the most-recently used desktop-list."
     (((class color)
       (background dark))
      (:foreground "light slate blue")))
-  "Face used for displaying sh buffer entries in the desktop-recover menu."
+  "Face used for displaying buffer entries in the desktop-recover menu."
   :group 'desktop-recover-faces)
 
 (defface desktop-recover-e-to-j-face
@@ -861,7 +902,7 @@ If run interactively, will re-display the most-recently used desktop-list."
     (((class color)
       (background dark))
      (:foreground "maroon1")))
-  "Face used for displaying sh buffer entries in the desktop-recover menu."
+  "Face used for displaying buffer entries in the desktop-recover menu."
   :group 'desktop-recover-faces)
 
 (defface desktop-recover-k-to-q-face
@@ -871,7 +912,7 @@ If run interactively, will re-display the most-recently used desktop-list."
     (((class color)
       (background dark))
      (:foreground "RoyalBlue1")))
-  "Face used for displaying sh buffer entries in the desktop-recover menu."
+  "Face used for displaying buffer entries in the desktop-recover menu."
   :group 'desktop-recover-faces)
 
 (defface desktop-recover-r-to-s-face
@@ -881,7 +922,7 @@ If run interactively, will re-display the most-recently used desktop-list."
     (((class color)
       (background dark))
      (:foreground "aquamarine1")))
-  "Face used for displaying sh buffer entries in the desktop-recover menu."
+  "Face used for displaying buffer entries in the desktop-recover menu."
   :group 'desktop-recover-faces)
 
 (defface desktop-recover-t-to-z-face
@@ -891,7 +932,7 @@ If run interactively, will re-display the most-recently used desktop-list."
     (((class color)
       (background dark))
      (:foreground "PaleVioletRed1")))
-  "Face used for displaying sh buffer entries in the desktop-recover menu."
+  "Face used for displaying buffer entries in the desktop-recover menu."
   :group 'desktop-recover-faces)
 
 (defvar desktop-recover-marker "*"
@@ -990,6 +1031,36 @@ If run interactively, will re-display the most-recently used desktop-list."
     menu-contents))
 
 (defun desktop-recover-choose-faces (string mode)
+  "Apply an appropriate face to STRING, given the MODE name.
+Some modes are special cases with particular faces associated
+with them, for the others, we look at the first character
+of the mode name, and use it to choose a generic face."
+  (cond ((string= mode "dired-mode")
+         (put-text-property 0 (length string)
+                            'face 'desktop-recover-directory-face
+                            string))
+        ((string-match "^[c]*perl-mode$" mode)
+         (put-text-property 0 (length string)
+                            'face 'desktop-recover-perl-face
+                            string))
+        ((string= mode "sh-mode")
+         (put-text-property 0 (length string)
+                            'face 'desktop-recover-sh-face
+                            string))
+        (t
+         (let* ((first-char    (downcase (substring mode 0 1)))
+                (face-name     (format "desktop-recover-%s-face" first-char))
+                (generic-face  (read face-name))
+                )
+           (if (string-match "^[a-z]$" first-char)
+               (put-text-property 0 (length string)
+                                  'face generic-face
+                                  string))
+           )))
+  string)
+
+;; TODO delete (obsolete)
+(defun desktop-recover-choose-faces-old (string mode)
   "Choose an appropriate face for STRING, given the MODE name.
 Some modes are special cases with particular faces associated
 with them, for the others, we look at the first character
