@@ -802,18 +802,6 @@ If run interactively, will re-display the most-recently used desktop-list."
   :group 'desktop-recover
   :group 'faces)
 
-(defface desktop-recover-directory-face
-  '((((class color)
-      (background light))
-     (:foreground "Navy" :bold t))
-    (((class color)
-      (background dark))
-     (:foreground "LightBlue" :bold t))
-    (t
-     (:bold t)))
-  "Face used for displaying dired buffer entires in desktop-recover menu."
-  :group 'desktop-recover-faces)
-
 (defface desktop-recover-heading-face
   '((((class color)
       (background light))
@@ -824,27 +812,68 @@ If run interactively, will re-display the most-recently used desktop-list."
   "Face used for displaying the heading of the desktop-recover menu."
   :group 'desktop-recover-faces)
 
+(defface desktop-recover-dired-face
+  '((((class color)
+      (background light))
+     (:foreground "DarkGoldenrod4" :bold t))
+    (((class color)
+      (background dark))
+     (:foreground "DarkGoldenrod2" :bold t))
+    (t
+     (:bold t)))
+  "Face used for displaying dired-mode entires in desktop-recover menu."
+  :group 'desktop-recover-faces)
+
 (defface desktop-recover-perl-face
   '((((class color)
       (background light))
-     (:foreground "olive drab"))
+     (:foreground "forest green"))
     (((class color)
       (background dark))
      (:foreground "light green")))
-  "Face used for displaying perl buffer entries in the desktop-recover menu."
+  "Face used for displaying perl mode entries in the desktop-recover menu."
   :group 'desktop-recover-faces)
 
 (defface desktop-recover-sh-face
   '((((class color)
       (background light))
-     (:foreground "dark orchid"))
+     (:foreground "khaki1"))
     (((class color)
       (background dark))
-     (:foreground "orchid")))
-  "Face used for displaying sh buffer entries in the desktop-recover menu."
+     (:foreground "khaki4")))
+  "Face used for displaying sh-mode entries in the desktop-recover menu."
   :group 'desktop-recover-faces)
 
-;; Experimental macro for generating faces
+(defface desktop-recover-text-face
+  '((((class color)
+      (background light))
+     (:foreground "RoyalBlue4"))
+    (((class color)
+      (background dark))
+     (:foreground "RoyalBlue1")))
+  "Face used for displaying text-mode entries in the desktop-recover menu."
+  :group 'desktop-recover-faces)
+
+(defface desktop-recover-fundamental-face
+  '((((class color)
+      (background light))
+     (:foreground "PaleVioletRed4"))
+    (((class color)
+      (background dark))
+     (:foreground "PaleVioletRed1")))
+  "Face used for displaying fundamental-mode entries in the desktop-recover menu."
+  :group 'desktop-recover-faces)
+
+(defface desktop-recover-emacs-lisp-face
+  '((((class color)
+      (background light))
+     (:foreground "MediumPurple4"))
+    (((class color)
+      (background dark))
+     (:foreground "MediumPurple1")))
+  "Face used for displaying elisp entries in the desktop-recover menu."
+  :group 'desktop-recover-faces)
+
 (defmacro desktop-recover-make-a-face (name char color1 color2)
   `(defface ,name
   '((((class color)
@@ -875,7 +904,7 @@ If run interactively, will re-display the most-recently used desktop-list."
 (desktop-recover-make-a-face desktop-recover-p-face "p" "DeepPink4" "DeepPink1")
 (desktop-recover-make-a-face desktop-recover-q-face "q" "SeaGreen4" "SeaGreen1")
 (desktop-recover-make-a-face desktop-recover-r-face "r" "aquamarine4" "aquamarine1")
-(desktop-recover-make-a-face desktop-recover-s-face "s" "DarkSlateGray4" "DarkSlateGray1")
+(desktop-recover-make-a-face desktop-recover-s-face "s" "maroon4" "maroon1")
 (desktop-recover-make-a-face desktop-recover-t-face "t" "coral4" "coral1")
 (desktop-recover-make-a-face desktop-recover-u-face "u" "salmon4" "salmon1")
 (desktop-recover-make-a-face desktop-recover-v-face "v" "LightSalmon4" "LightSalmon1")
@@ -883,57 +912,6 @@ If run interactively, will re-display the most-recently used desktop-list."
 (desktop-recover-make-a-face desktop-recover-x-face "x" "chocolate4" "chocolate1")
 (desktop-recover-make-a-face desktop-recover-y-face "y" "PeachPuff4" "PeachPuff1")
 (desktop-recover-make-a-face desktop-recover-z-face "z" "tan4" "tan1")
-
-;; TODO the following are probably vestigial now, replaced by the system above
-(defface desktop-recover-a-to-d-face
-  '((((class color)
-      (background light))
-     (:foreground "dark slate blue"))
-    (((class color)
-      (background dark))
-     (:foreground "light slate blue")))
-  "Face used for displaying buffer entries in the desktop-recover menu."
-  :group 'desktop-recover-faces)
-
-(defface desktop-recover-e-to-j-face
-  '((((class color)
-      (background light))
-     (:foreground "maroon4"))
-    (((class color)
-      (background dark))
-     (:foreground "maroon1")))
-  "Face used for displaying buffer entries in the desktop-recover menu."
-  :group 'desktop-recover-faces)
-
-(defface desktop-recover-k-to-q-face
-  '((((class color)
-      (background light))
-     (:foreground "RoyalBlue4"))
-    (((class color)
-      (background dark))
-     (:foreground "RoyalBlue1")))
-  "Face used for displaying buffer entries in the desktop-recover menu."
-  :group 'desktop-recover-faces)
-
-(defface desktop-recover-r-to-s-face
-  '((((class color)
-      (background light))
-     (:foreground "aquamarine4"))
-    (((class color)
-      (background dark))
-     (:foreground "aquamarine1")))
-  "Face used for displaying buffer entries in the desktop-recover menu."
-  :group 'desktop-recover-faces)
-
-(defface desktop-recover-t-to-z-face
-  '((((class color)
-      (background light))
-     (:foreground "PaleVioletRed4"))
-    (((class color)
-      (background dark))
-     (:foreground "PaleVioletRed1")))
-  "Face used for displaying buffer entries in the desktop-recover menu."
-  :group 'desktop-recover-faces)
 
 (defvar desktop-recover-marker "*"
   "Symbol used to show a buffer will be reloaded \(typically \"*\"\).")
@@ -1037,7 +1015,7 @@ with them, for the others, we look at the first character
 of the mode name, and use it to choose a generic face."
   (cond ((string= mode "dired-mode")
          (put-text-property 0 (length string)
-                            'face 'desktop-recover-directory-face
+                            'face 'desktop-recover-dired-face
                             string))
         ((string-match "^[c]*perl-mode$" mode)
          (put-text-property 0 (length string)
@@ -1046,6 +1024,18 @@ of the mode name, and use it to choose a generic face."
         ((string= mode "sh-mode")
          (put-text-property 0 (length string)
                             'face 'desktop-recover-sh-face
+                            string))
+        ((string= mode "emacs-lisp-mode")
+         (put-text-property 0 (length string)
+                            'face 'desktop-recover-emacs-lisp-face
+                            string))
+        ((string= mode "text-mode")
+         (put-text-property 0 (length string)
+                            'face 'desktop-recover-text-face
+                            string))
+        ((string= mode "fundamental-mode")
+         (put-text-property 0 (length string)
+                            'face 'desktop-recover-fundamental-face
                             string))
         (t
          (let* ((first-char    (downcase (substring mode 0 1)))
@@ -1058,47 +1048,6 @@ of the mode name, and use it to choose a generic face."
                                   string))
            )))
   string)
-
-;; TODO delete (obsolete)
-(defun desktop-recover-choose-faces-old (string mode)
-  "Choose an appropriate face for STRING, given the MODE name.
-Some modes are special cases with particular faces associated
-with them, for the others, we look at the first character
-of the mode name, and use it to choose a generic face."
-  (cond ((string= mode "dired-mode")
-         (put-text-property 0 (length string)
-                            'face 'desktop-recover-directory-face
-                            string))
-        ((string-match "^[c]*perl-mode$" mode)
-         (put-text-property 0 (length string)
-                            'face 'desktop-recover-perl-face
-                            string))
-        ((string= mode "sh-mode")
-         (put-text-property 0 (length string)
-                            'face 'desktop-recover-sh-face
-                            string))
-        ((string-match "^[a-d]" mode)
-         (put-text-property 0 (length string)
-                            'face 'desktop-recover-a-to-d-face
-                            string))
-        ((string-match "^[e-j]" mode)
-         (put-text-property 0 (length string)
-                            'face 'desktop-recover-e-to-j-face
-                            string))
-        ((string-match "^[k-q]" mode)
-         (put-text-property 0 (length string)
-                            'face 'desktop-recover-k-to-q-face
-                            string))
-        ((string-match "^[r-s]" mode)
-         (put-text-property 0 (length string)
-                            'face 'desktop-recover-r-to-s-face
-                            string))
-        ((string-match "^[t-z]" mode)
-         (put-text-property 0 (length string)
-                            'face 'desktop-recover-t-to-z-face
-                            string)))
-  string)
-
 
 ;; four fields: marker auto-save-marker name  path
 (defun desktop-recover-menu-format (desktop-list)
@@ -1129,9 +1078,9 @@ of the mode name, and use it to choose a generic face."
            "s"))
     line-fmt))
 
-;; TODO this has access to the mode -- why not use it?
-;; could distinguish between dired & shell buffers at this stage?
-;; might be good to do dynamic buffer filtering later than I am...
+;; TODO this could use the mode to do mode based selection defaults.
+;; You might like to have dired off by default? Or filter shell buffers
+;; at this stage, not when saving the desktop.
 (defun desktop-recover-by-default-p (record)
   "Examine RECORD to determine if this buffer should be reloaded by default.
 A file should not be re-loaded if was an automatically saved temporary
