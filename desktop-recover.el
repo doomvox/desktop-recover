@@ -1192,7 +1192,7 @@ with auto-save file recovery, if that's indicated."
 
 (defun desktop-recover-mark ()
   "Set the marker for the current line: add leading asterix."
-  ;; TODO hard to avoid hardcoding column 2 presumption, right?
+  ;; TODO any reason to avoid hardcoding putting it in column 2?
   (interactive)
   (save-excursion
   (setq buffer-read-only nil)
