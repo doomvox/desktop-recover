@@ -1340,6 +1340,7 @@ It does almost precisely the same thing, but it shuts up about it."
 		   ;; to emulate what `ls' did in that case.
 		   (insert-directory-safely file switches)
 		   (insert-directory-safely file-name switches))))
+             ;; Commenting out for quieter operation -- doom@kzsu.stanford.edu
 	     ;; (yes-or-no-p (format "Recover auto save file %s? " file-name))
              )
 	   (switch-to-buffer (find-file-noselect file t))
