@@ -32,6 +32,8 @@
 ;;  ;; optionallly:
 ;;  (setq desktop-recover-location
 ;;     (desktop-recover-fixdir "$HOME/.emacs.d/")) ;; ~/.emacs.d is the default
+;;  Something like this is highly recommended:
+;;  (prefer-coding-system 'utf-8)
 ;;  ;; Brings up the interactive buffer restore menu
 ;;  (desktop-recover-interactive)
 
@@ -86,6 +88,11 @@ connections\).\n For other notes, see
    (1) Put the desktop-recover.el file somewhere in your load-path\n
    (2) Add the following lines to your ~/.emacs:
      (require 'desktop-recover)
+     ;; Highly recommended to keep emacs from bugging you about coding systems:
+     (prefer-coding-system 'utf-8)
+     ;; Optionally, if you'd like to specify where the desktop should be saved:
+     (setq desktop-recover-location
+        (desktop-recover-fixdir \"$HOME/.emacs.d/\"))
      ;; brings up the interactive buffer restore menu
      (desktop-recover-interactive)\n
 Now when you invoke emacs, you should see a listing of the buffers that
@@ -134,19 +141,17 @@ For other notes, see `desktop-recover-doc-toc'.")
 
 (defvar desktop-recover-doc-dangling-buffers ""
   "We use \"dangling buffers\" to mean buffers without associated files.
-Typically we will exclude the special display buffers (which
-usually begin with an asterix), as well as any dired and shell
-buffers.  We're concerned here with buffers used for temporary
-notes that might've been prematurely lost by an emacs crash
-\(e.g. due to a broken connection\). Along with the automated
-desktop save feature, we will save these dangling buffers to
-temporary files, making them a little less ephemeral, though not
-as permanent as ordinary files. Nothing else should be saved to
-this special temp directory, because we'll use this location
-later to distinguish dangling buffers even after they've been
-saved.  This way, after a clean exit from emacs we can skip
-loading them by default next time.\n
-For other notes, see `desktop-recover-doc-toc'.")
+Typically that excludes the special display buffers (which
+usually begin with an asterix) along with dired or shell buffers.
+We're concerned here with buffers used for temporary notes that
+might've been prematurely lost by an emacs crash \(e.g. due to a
+broken connection\). These dangling buffers get saved to
+temporary files, making them a little less ephemeral. Nothing
+else should be saved to this special temp directory, because
+we'll use this location later to distinguish dangling buffers
+even after they've been saved.  This way, after a clean exit from
+emacs we can skip loading them by default next time.\n For other
+notes, see `desktop-recover-doc-toc'.")
 
 (defvar desktop-recover-doc-desktop-list ""
   "Many functions in this package work with a data-structure
@@ -197,7 +202,7 @@ circumstances."
   "List of compatible desktop.el desktop file format versions.
 These are the formats that we know desktop-recover.el can work with.")
 
-(defvar desktop-recover-buffer-name "*Desktop Buffer Restore Menu*"
+(defvar desktop-recover-buffer-name "*Desktop Recover Menu*"
   "Buffer name for the desktop restore menu.")
 
 (defvar desktop-recover-clean-exit-flag "desktop_recover_clean_exit.flag"
@@ -874,7 +879,7 @@ If run interactively, will re-display the most-recently used desktop-list."
   "Face used for displaying elisp entries in the desktop-recover menu."
   :group 'desktop-recover-faces)
 
-(defmacro desktop-recover-make-a-face (name char color1 color2)
+(defmacro desktop-recover-make-face (name char color1 color2)
   `(defface ,name
   '((((class color)
       (background light))
@@ -886,32 +891,32 @@ If run interactively, will re-display the most-recently used desktop-list."
   :group 'desktop-recover-faces
   ))
 
-(desktop-recover-make-a-face desktop-recover-a-face "a" "DarkOrange4" "DarkOrange1")
-(desktop-recover-make-a-face desktop-recover-b-face "b" "orange4" "orange1")
-(desktop-recover-make-a-face desktop-recover-c-face "c" "gold4" "gold1")
-(desktop-recover-make-a-face desktop-recover-d-face "d" "DarkOrchid4" "DarkOrchid1")
-(desktop-recover-make-a-face desktop-recover-f-face "e" "chartreuse4" "chartreuse1")
-(desktop-recover-make-a-face desktop-recover-f-face "f" "green4" "green1")
-(desktop-recover-make-a-face desktop-recover-g-face "g" "SpringGreen4" "SpringGreen1")
-(desktop-recover-make-a-face desktop-recover-h-face "h" "cyan4" "cyan1")
-(desktop-recover-make-a-face desktop-recover-i-face "i" "OliveDrab4" "OliveDrab1")
-(desktop-recover-make-a-face desktop-recover-j-face "j" "DeepSkyBlue4" "DeepSkyBlue1")
-(desktop-recover-make-a-face desktop-recover-k-face "k" "blue4" "blue1")
-(desktop-recover-make-a-face desktop-recover-l-face "l" "magenta4" "magenta1")
-(desktop-recover-make-a-face desktop-recover-m-face "m" "DarkOliveGreen4" "DarkOliveGreen1")
-(desktop-recover-make-a-face desktop-recover-n-face "n" "PaleGreen4" "PaleGreen1")
-(desktop-recover-make-a-face desktop-recover-o-face "o" "DarkSeaGreen4" "DarkSeaGreen1")
-(desktop-recover-make-a-face desktop-recover-p-face "p" "DeepPink4" "DeepPink1")
-(desktop-recover-make-a-face desktop-recover-q-face "q" "SeaGreen4" "SeaGreen1")
-(desktop-recover-make-a-face desktop-recover-r-face "r" "aquamarine4" "aquamarine1")
-(desktop-recover-make-a-face desktop-recover-s-face "s" "maroon4" "maroon1")
-(desktop-recover-make-a-face desktop-recover-t-face "t" "coral4" "coral1")
-(desktop-recover-make-a-face desktop-recover-u-face "u" "salmon4" "salmon1")
-(desktop-recover-make-a-face desktop-recover-v-face "v" "LightSalmon4" "LightSalmon1")
-(desktop-recover-make-a-face desktop-recover-w-face "w" "CadetBlue4" "CadetBlue1")
-(desktop-recover-make-a-face desktop-recover-x-face "x" "chocolate4" "chocolate1")
-(desktop-recover-make-a-face desktop-recover-y-face "y" "PeachPuff4" "PeachPuff1")
-(desktop-recover-make-a-face desktop-recover-z-face "z" "tan4" "tan1")
+(desktop-recover-make-face desktop-recover-a-face "a" "DarkOrange4" "DarkOrange1")
+(desktop-recover-make-face desktop-recover-b-face "b" "orange4" "orange1")
+(desktop-recover-make-face desktop-recover-c-face "c" "gold4" "gold1")
+(desktop-recover-make-face desktop-recover-d-face "d" "DarkOrchid4" "DarkOrchid1")
+(desktop-recover-make-face desktop-recover-f-face "e" "chartreuse4" "chartreuse1")
+(desktop-recover-make-face desktop-recover-f-face "f" "green4" "green1")
+(desktop-recover-make-face desktop-recover-g-face "g" "SpringGreen4" "SpringGreen1")
+(desktop-recover-make-face desktop-recover-h-face "h" "cyan4" "cyan1")
+(desktop-recover-make-face desktop-recover-i-face "i" "OliveDrab4" "OliveDrab1")
+(desktop-recover-make-face desktop-recover-j-face "j" "DeepSkyBlue4" "DeepSkyBlue1")
+(desktop-recover-make-face desktop-recover-k-face "k" "blue4" "blue1")
+(desktop-recover-make-face desktop-recover-l-face "l" "magenta4" "magenta1")
+(desktop-recover-make-face desktop-recover-m-face "m" "DarkOliveGreen4" "DarkOliveGreen1")
+(desktop-recover-make-face desktop-recover-n-face "n" "PaleGreen4" "PaleGreen1")
+(desktop-recover-make-face desktop-recover-o-face "o" "DarkSeaGreen4" "DarkSeaGreen1")
+(desktop-recover-make-face desktop-recover-p-face "p" "DeepPink4" "DeepPink1")
+(desktop-recover-make-face desktop-recover-q-face "q" "SeaGreen4" "SeaGreen1")
+(desktop-recover-make-face desktop-recover-r-face "r" "aquamarine4" "aquamarine1")
+(desktop-recover-make-face desktop-recover-s-face "s" "maroon4" "maroon1")
+(desktop-recover-make-face desktop-recover-t-face "t" "coral4" "coral1")
+(desktop-recover-make-face desktop-recover-u-face "u" "salmon4" "salmon1")
+(desktop-recover-make-face desktop-recover-v-face "v" "LightSalmon4" "LightSalmon1")
+(desktop-recover-make-face desktop-recover-w-face "w" "CadetBlue4" "CadetBlue1")
+(desktop-recover-make-face desktop-recover-x-face "x" "chocolate4" "chocolate1")
+(desktop-recover-make-face desktop-recover-y-face "y" "PeachPuff4" "PeachPuff1")
+(desktop-recover-make-face desktop-recover-z-face "z" "tan4" "tan1")
 
 (defvar desktop-recover-marker "*"
   "Symbol used to show a buffer will be reloaded \(typically \"*\"\).")
