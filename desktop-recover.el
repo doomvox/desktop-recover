@@ -95,12 +95,13 @@ connections\).\n For other notes, see
         (desktop-recover-fixdir \"$HOME/.emacs.d/\"))
      ;; brings up the interactive buffer restore menu
      (desktop-recover-interactive)\n
-Now when you invoke emacs, you should see a listing of the buffers that
-were left open when you last exited emacs \(even if you didn't get
-a chance to exit cleanly\).  You can just hit \"Enter\" to restore
-all of the indicated buffers (marked with an \"*\"), or you can cursor
-up and down first, and adjust the selections first, using \"u\" to
-unmark and \"*\" to mark.\n
+Now when you invoke emacs, you should see a listing of the
+buffers that were left open when you last exited emacs \(even if
+you didn't get a chance to exit cleanly\).  If you can just hit
+\"Enter\" you can restore all of the indicated buffers (the ones
+marked with an \"*\"), or first you adjust the selections by
+cursoring up and down and using \"u\" to unmark and \"*\" to
+mark.\n
 That's about all you need to know to get started.  There are some
 other details that you may like to know eventually: the presence of
 a newer auto-save file is indicated with a \"%\" \(next to the \"*\"\).
@@ -110,33 +111,60 @@ that weren't saved to files, this system will automatically preserve
 them in a special temp directory: they're restored by default if
 you did not exit cleanly, but if you did they will not be selected
 by default.\n
+If you like, you can ignore the \"*Desktop Recover Menu\" for awhile,
+and do the recovery step later, but you should realize that your
+desktop will not be automatically saved again until after you've
+hit Enter in that menu.\n
 For other notes, see `desktop-recover-doc-toc'.")
+
+(defvar desktop-recover-doc-howto-multiple-emacsen ""
+ "If you feel the need to regularly run multiple emacs processes
+in parallel \(for example, I'm inclined to use one for MH-E,
+one for gnus, and a third for development work\) it's recommended
+to either only run desktop-recover.el in one emacs at a time,
+or alternately to make sure that each process is using a
+different `desktop-recover-location' location."
+)
+;; TODO finish -- make sure these techniques all actually work.
+;; (0) manually avoid desktop auto-saves: don't hit return in recover menu.
+;; (1) different emacs init files for each
+;; (2) a wrapper script to set the variable (haven't seen this work yet).
+;; (3) a good use for a "--no-desktop" flag if I can manage it.
 
 (defvar desktop-recover-doc-philosophy ""
   "In many respects desktop-recover.el works more simply than desktop.el.
 While desktop-recover.el uses desktop.el internally to save the
-state of the emacs \"desktop\", it carefully overrides some
-features.  By itself, desktop.el is very cautious about keeping
-desktop files locked, so that it can warn the user if it looks
-like two different emacs instances are trying to use the same
-file.  It also dynamically searches several likely locations to
-find a desktop file, making it's behavior a little unpredictable.
-This package, desktop-recover.el takes a somewhat different approach:
-the presumption is that there is nothing critical about saving
-desktop state; it's just a convenience feature, and so there's no
-good reason to bother the user about confirmations.  The basic
-desktop-recover save primitive is \\[desktop-recover-force-save],
-which just ignores any desktop.el locks.\n
-Further, desktop-recover.el uses a much simpler directory search:
-it has a single variable that can be set to tell it where to save
-to: `desktop-recover-location'.  This defaults to the value of
-`user-emacs-directory', which is typically \"~/.emacs.d\".  To
-get desktop.el's dynamically determined `desktop-dirname'
-behavior, `desktop-recover-location' can be set to nil,\n
+state of the emacs \"desktop\", it intentionally overrides some
+features: (1) By itself, desktop.el is very cautious about
+keeping desktop files locked, so that it can warn the user if it
+looks like two different emacs instances are trying to use the
+same file.  (2) desktop.el also dynamically searches several
+likely locations to find a desktop file, making it's behavior a
+little unpredictable.  This package, desktop-recover.el takes a
+somewhat different approach: the presumption is that there is
+nothing critical about saving desktop state; it's just a
+convenience feature, and so there's no good reason to bother the
+user about confirmations in the event of an apparent conflict
+\(and note that for our purposes, the desktop file is always
+going to be read by a different emacs process than the one that
+wrote it\).  The basic desktop-recover save primitive is
+\\[desktop-recover-force-save], which just ignores any desktop.el
+locks.  If you're worried about concurrently running emacs
+processes fighting over the same desktop file, then you shouldn't
+start two of them that use the same location.  That's easier to
+do with desktop-recover.el, because it has a single variable that
+can be set to tell it where to save: `desktop-recover-location'.
+To get desktop.el's dynamically determined `desktop-dirname'
+behavior, `desktop-recover-location' can be set to nil, but when
+it is set, desktop-recover.el will really use that location,
+overriding desktop.el's dynamic search.
+`desktop-recover-location' defaults to the value of
+`user-emacs-directory', which is typically \"~/.emacs.d\".\n
 In order to supress saves, desktop.el code internally sets the
-`desktop-dirname' to nil, in contrast, the desktop-recover.el
-has the variable `desktop-recover-suppress-save', and also the
-function \\[desktop-recover-stop-automatic-saves].\n
+`desktop-dirname' to nil, in contrast, desktop-recover.el has the
+function \\[desktop-recover-stop-automatic-saves] and also the
+variable `desktop-recover-suppress-save' \(an older, but still
+effective mechanism\).\n
 For other notes, see `desktop-recover-doc-toc'.")
 
 (defvar desktop-recover-doc-dangling-buffers ""
@@ -179,15 +207,22 @@ For other notes, see `desktop-recover-doc-toc'.
   "Interactive recovery of Emacs status."
   :group 'desktop)
 
-(defcustom desktop-recover-location user-emacs-directory
+;; (defcustom desktop-recover-location user-emacs-directory
+;;   "The default location from which we save and restore desktop files.
+;; Defaults to `user-emacs-directory'.  Note: desktop.el has a
+;; `desktop-dirname' variable, but that can not be used reliably as
+;; a user setting, because the code changes it under some
+;; circumstances."
+;;   :type  'directory
+;;   :group 'desktop-recover
+;; )
+
+(defvar desktop-recover-location user-emacs-directory
   "The default location from which we save and restore desktop files.
 Defaults to `user-emacs-directory'.  Note: desktop.el has a
 `desktop-dirname' variable, but that can not be used reliably as
 a user setting, because the code changes it under some
-circumstances."
-  :type  'directory
-  :group 'desktop-recover
-)
+circumstances.")
 (put 'desktop-recover-location 'risky-local-variable t)
 
 (defcustom desktop-recover-tmp-dir
@@ -535,9 +570,9 @@ begin with a leading asterix."
 ;;========
 ;; read desktop files
 
-;; desktop.el's desktop-read just loads the whole the .emacs-desktop
-;; file (which contains elisp), but to handle each file recovery
-;; conditionally, we need to parse the .emacs-desktop ourselves
+;; desktop.el's desktop-read just loads the whole .emacs-desktop
+;; elisp file, but to handle each file recovery conditionally,
+;; we need to parse the .emacs-desktop ourselves
 (defun desktop-recover-interactive (&optional dirname)
   "Read the .emacs-desktop file, bring up menu to approve buffer restoration."
   (interactive "Dload desktop file from:")
@@ -1210,9 +1245,14 @@ with auto-save file recovery, if that's indicated."
           ;; (set-buffer recover-list-buffer) ;; do you *trust* save-excursion?
           (previous-line 1)
           (>= (line-number-at-pos) 2)
-          )) ;; end while-progn
+          )) ;; end while-progn -- all menu lines done
     (desktop-recover-do-saves-automatically)
+    ;; it's okay to leave the menu around, but we should at least bury it
+    (bury-buffer recover-list-buffer)
     (list-buffers)
+    (other-window 1)
+    (goto-char (point-min))
+    (other-window -1)
     ))
 
 (defun desktop-recover-mark ()
