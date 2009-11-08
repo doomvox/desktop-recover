@@ -976,8 +976,8 @@ If run interactively, will re-display the most-recently used desktop-list."
         (marker-field)
         (auto-save-field)
         (hint-mess (concat
-                    "To open indicated buffers: RETURN. "
-                    "Mark: \"*\" Unmark: \"u\" "
+                    "Hit Enter to open marked buffers."
+                    "To mark: \"*\" Unmark: \"u\" "
                     "Toggle auto-save: \"#\"" "\n"))
         (menu-contents "")
         )
