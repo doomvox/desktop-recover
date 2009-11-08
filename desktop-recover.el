@@ -1202,6 +1202,12 @@ with auto-save file recovery, if that's indicated."
                   desktop-recover-marker
                   "\\*")) ;; line begins with asterix
          (auto-save-pattern desktop-recover-auto-save-marker)
+         ;; must imitate the context of dcb calls in desktop.el
+         ;; (even though we don't care about these features).
+         (desktop-first-buffer nil)
+         (desktop-buffer-ok-count 0)
+         (desktop-buffer-fail-count 0)
+         (owner (desktop-owner))
          )
     ;; now we do all of the lines
     (goto-char (point-max))
@@ -1219,12 +1225,6 @@ with auto-save file recovery, if that's indicated."
                         ;; (mode (eval (get-char-property (point) 'mode)))
                         (name (get-char-property (point) 'name))
                         (path (get-char-property (point) 'path))
-                        ;; must imitate the context of dcb calls in desktop.el
-                        ;; (even though we don't care about these features).
-                        (desktop-first-buffer nil)
-                        (desktop-buffer-ok-count 0)
-                        (desktop-buffer-fail-count 0)
-                        (owner (desktop-owner))
                         )
                      ;; do it to it (and keep going if there are problems with one)
                      (condition-case nil
