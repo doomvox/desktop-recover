@@ -1145,9 +1145,7 @@ name, path, mode and dcb-code.  Always returns nil if path is nil."
                                nil)
                               (t
                                t)))
-                       (t t)))
-           )
-      )
+                       (t t)))))
     recover-p))
 
 (defun desktop-recover-newer-auto-save (path)
@@ -1196,7 +1194,7 @@ with auto-save file recovery, if that's indicated."
   (interactive)
   (let* (
          (recover-list-buffer (current-buffer))
-         (desktop-recover-suppress-save t) ;; Don't save desktop during load
+         (desktop-recover-suppress-save t) ;; No point in saving during load
          (marker-pattern
           (concat "^[ \t]"
                   desktop-recover-marker
@@ -1210,6 +1208,7 @@ with auto-save file recovery, if that's indicated."
          (owner (desktop-owner))
          )
     ;; now we do all of the lines
+    ;; note: this sweeps bottom-to-top
     (goto-char (point-max))
     (while ;; loop over all lines in buffer
         (progn
@@ -1231,9 +1230,8 @@ with auto-save file recovery, if that's indicated."
                          (eval (read dcb-code))
                        (error
                         (message "Problem recovering %s %s" name path)))
-
+                     ;; check for auto-save file, recover if indicated
                      (cond ((not (string-match "/$" path)) ;; not a directory
-                            ;; check for auto-save file, recover if indicated
                             (cond ((and
                                     (desktop-recover-newer-auto-save path)
                                     (string-match auto-save-pattern auto-save))
@@ -1242,13 +1240,11 @@ with auto-save file recovery, if that's indicated."
                             ))
                      )))
             ) ;; end save-excursion
-          ;; (set-buffer recover-list-buffer) ;; do you *trust* save-excursion?
           (previous-line 1)
           (>= (line-number-at-pos) 2)
           )) ;; end while-progn -- all menu lines done
     (desktop-recover-do-saves-automatically)
-    ;; it's okay to leave the menu around, but we should at least bury it
-    (bury-buffer recover-list-buffer)
+    (bury-buffer recover-list-buffer) ;; ok to leave around, but let's bury it
     (list-buffers)
     (other-window 1)
     (goto-char (point-min))
@@ -1349,7 +1345,7 @@ Will not turn this mark on unless there really is a newer auto-save file."
 ;; recover-file *quietly*
 
 ;; Sleazy cut-and paste of a routine from files.el, so that
-;; I can yank out the "Recover auto save file" question.
+;; I can yank out the "Recover auto save file?" question.
 (defun desktop-recover-recover-file (file)
   "Visit file FILE, but get contents from its last auto-save file.
 This bears an amazing resemblence to recover-file from files.el.
