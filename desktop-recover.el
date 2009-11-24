@@ -123,13 +123,18 @@ in parallel \(for example, I'm inclined to use one for MH-E,
 one for gnus, and a third for development work\) it's recommended
 to either only run desktop-recover.el in one emacs at a time,
 or alternately to make sure that each process is using a
-different `desktop-recover-location' location."
-)
-;; TODO finish -- make sure these techniques all actually work.
-;; (0) manually avoid desktop auto-saves: don't hit return in recover menu.
+different `desktop-recover-location' location.  Note that unlike
+desktop.el, desktop-recover.el does not use lock files to prevent
+over-writing someone else's desktop file (See
+`desktop-recover-doc-philosophy').
+For other notes, see `desktop-recover-doc-toc'.")
+;; TODO finish the above?  But it's redundant with "philosophy",
+;; isn't it?
+;; And make sure these techniques all actually work.
+;; (0) manually avoid desktop auto-saves: don't hit return in recover menu. (yes)
 ;; (1) different emacs init files for each
 ;; (2) a wrapper script to set the variable (haven't seen this work yet).
-;; (3) a good use for a "--no-desktop" flag if I can manage it.
+;; (3) a good use for a "--no-desktop" flag if I can manage it. TODO
 
 (defvar desktop-recover-doc-philosophy ""
   "In many respects desktop-recover.el works more simply than desktop.el.
@@ -336,8 +341,7 @@ emacs died."
          )
          (if (file-exists-p clean-exit-flag-file)
              (delete-file clean-exit-flag-file)
-             )
-    ))
+             )))
 
 (defun desktop-recover-clean-exit-p ()
   "Does it look like emacs exited cleanly?"
