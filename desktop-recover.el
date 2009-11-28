@@ -90,9 +90,12 @@ connections\).\n For other notes, see
      (require 'desktop-recover)
      ;; Highly recommended to keep emacs from bugging you about coding systems:
      (prefer-coding-system 'utf-8)
-     ;; Optionally, if you'd like to specify where the desktop should be saved:
-     (setq desktop-recover-location
-        (desktop-recover-fixdir \"$HOME/.emacs.d/\"))
+     ;; Optional settings:
+     ;;   if you'd like to specify where the desktop should be saved:
+       (setq desktop-recover-location
+          (desktop-recover-fixdir \"$HOME/.emacs.d/\"))
+     ;;   increase this to save the desktop less often (e.g. if disk is slow):
+       (setq desktop-recover-save-period 3)
      ;; brings up the interactive buffer restore menu
      (desktop-recover-interactive)\n
 Now when you invoke emacs, you should see a listing of the
@@ -238,6 +241,17 @@ circumstances.")
 )
 (put 'desktop-recover-tmp-dir 'risky-local-variable t)
 
+(defvar desktop-recover-auto-save-count 1
+  "Number of times auto-save-hook has fired.
+Should be reset to zero when it exceeds the `desktop-recover-save-period'.")
+
+(defcustom desktop-recover-save-period 3
+  "Number of auto-saves when desktop will be saved.
+You may wish to increase this number if your disk response
+is slow."
+  :type  'integer
+  :group 'desktop-recover)
+
 (defvar desktop-recover-compatible-desktop-versions '(206)
   "List of compatible desktop.el desktop file format versions.
 These are the formats that we know desktop-recover.el can work with.")
@@ -360,14 +374,15 @@ emacs died."
   "Makes the desktop saved automatically using the auto-save-hook.
 When exiting emacs intentionally, creates a flag file to indicate
 we have exited cleanly."
-  (add-hook 'auto-save-hook 'desktop-recover-save-with-danglers)
+;;  (add-hook 'auto-save-hook 'desktop-recover-save-with-danglers)
+  (add-hook 'auto-save-hook 'desktop-recover-handle-auto-save)
   ;; remove flag file (it's re-created by doing a clean exit)
   (desktop-recover-reset-clean-exit-flag)
   (add-hook 'kill-emacs-hook 'desktop-recover-clean-up-for-exit))
 
 (defun desktop-recover-stop-automatic-saves ()
   "Stops the desktop from being saved automatically via the auto-save-hook."
-  (remove-hook 'auto-save-hook 'desktop-recover-save-with-danglers)
+  (remove-hook 'auto-save-hook 'desktop-recover-handle-auto-save)
   (remove-hook 'kill-emacs-hook 'desktop-recover-clean-up-for-exit))
 
 (defun desktop-recover-clean-up-for-exit ()
@@ -390,6 +405,18 @@ See \\[desktop-recover-do-saves-automatically]."
   (desktop-recover-flag-clean-exit)
   (save-buffers-kill-terminal)
   )
+
+(defun desktop-recover-handle-auto-save ()
+  "Take the appropriate action if the auto-save-hook fires.
+Saves the desktop state if the auto-save counter exceeds
+the `desktop-recover-save-period'."
+  (cond ((> desktop-recover-auto-save-count desktop-recover-save-period)
+         (setq desktop-recover-auto-save-count 1)
+         (desktop-recover-save-with-danglers)
+        )
+        (t
+         (setq desktop-recover-auto-save-count (+ 1 desktop-recover-auto-save-count))
+         )))
 
 (defun desktop-recover-save-with-danglers ()
   "Save desktop preserving buffers that have no associated files.
@@ -519,6 +546,41 @@ See: `desktop-recover-doc-dangling-buffers'"
   (interactive)
   (desktop-recover-break-file-association-of-danglers)
   (desktop-recover-force-save))
+
+;;--------
+;; interactive commands to manipulate the save period
+
+(defun desktop-recover-increase-save-period (&optional delta)
+  "Increases the save period, `desktop-recover-save-period'.
+By default, increases the save period by 1.
+When run interactively, a numeric prefix argument may be used to
+indicate how much to increase the period \(e.g. a C-u prefix will
+increase by 4\).  When run from a program, the argument DELTA
+should be a numeric value.  In either case, the numeric value may
+be negative, to reduce the save period.
+The \"save period\" is the number of auto-saves that must
+occur before the desktop state is saved.  You might wish
+to increase this period if your disk response seems sluggish."
+  (interactive "P")
+  (if (listp delta)
+      (setq delta (car delta)))
+  (unless (number-or-marker-p delta)
+    (setq delta 1))
+  (setq desktop-recover-save-period
+        (+ desktop-recover-save-period delta))
+  (message "The desktop-recover-save-period is now %d" desktop-recover-save-period))
+
+;; Yes, a redundant function, but having this is convenient.
+(defun desktop-recover-decrease-save-period (&optional delta)
+  "Decrease the save period.  See: \\[desktop-recover-increase-save-period]."
+  (interactive "P")
+  (if (listp delta)
+      (setq delta (car delta)))
+  (unless (number-or-marker-p delta)
+    (setq delta 1))
+  (setq desktop-recover-save-period
+        (- desktop-recover-save-period delta))
+  (message "The desktop-recover-save-period is now %d" desktop-recover-save-period))
 
 ;; --------
 ;; desktop-recover.el save primitives (all other "saves" use these internally)
@@ -686,14 +748,14 @@ See \\[desktop-recover-doc-desktop-list]."
     desktop-list))
 
 (defun desktop-recover-clean-string (string)
-  "Do some common quick-and-dirty string clean-up operations.
+  "Do some common, quick-and-dirty string clean-up operations.
 Strips leading/trailing whitespace, bracketing double-quotes, and
 also any leading single-quotes."
   (let ((strip-lead-space-pattern      "^[ \t]*\\([^ \t]*.*\\)" )
         (strip-trail-space-pattern     "\\(.*?\\)[ \t]*$"       )
         (strip-lead-apostrophe-pattern "^'*\\(.*\\)"            )
-        (strip-lead-quote-pattern      "^\"*\\(.*\\)")
-        (strip-trail-quote-pattern     "\\(.*?\\)\"*$")
+        (strip-lead-quote-pattern      "^\"*\\(.*\\)"           )
+        (strip-trail-quote-pattern     "\\(.*?\\)\"*$"          )
         )
     (cond (string  ;; skip everything if string is nil
        (setq string
