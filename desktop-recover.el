@@ -50,7 +50,7 @@
 (require 'desktop)
 (require 'thingatpt)
 
-(defconst desktop-recover-version "0.92"
+(defconst desktop-recover-version "0.93"
   "The version number of the installed desktop-recover.el package.")
 
 
@@ -1229,7 +1229,8 @@ of the mode name, and use it to choose a generic face."
 
 ;; TODO this could use the mode to do mode based selection defaults.
 ;; You might like to have dired off by default? Or filter shell buffers
-;; at this stage, not when saving the desktop.
+;; at this stage, not when saving the desktop.  So, define a list of modes
+;; to ignore, where the default is just dired-mode?
 (defun desktop-recover-by-default-p (record)
   "Examine RECORD to determine if this buffer should be reloaded by default.
 A file should not be re-loaded if was an automatically saved temporary
@@ -1249,7 +1250,7 @@ name, path, mode and dcb-code.  Always returns nil if path is nil."
         (progn
            (setq location (desktop-recover-fixdir (file-name-directory path)))
            (setq recover-p
-                 (cond ((string= location tmp-dir) ;; this is a preserved dangler
+                 (cond ((string= location tmp-dir) ;; a preserved dangler
                         (cond ((desktop-recover-clean-exit-p)
                                nil)
                               (t
@@ -1300,6 +1301,12 @@ name, path, mode and dcb-code.  Always returns nil if path is nil."
 Runs the appropriate \"desktop-create-buffer\" calls stored
 in the desktop-list data structure.  Follows up
 with auto-save file recovery, if that's indicated."
+;; An implementation quirk: the text displayed to the user has little
+;; to do with the values that we read in here, instead it uses the
+;; "hidden" fields attached to the text properties of the first
+;; character of the line.  The one exception is the asterix used to
+;; mark a line as active.  We search for the visible asterix to find
+;; the next line to process.
   (interactive)
   (let* (
          (recover-list-buffer (current-buffer))
@@ -1334,7 +1341,7 @@ with auto-save file recovery, if that's indicated."
                         (name (get-char-property (point) 'name))
                         (path (get-char-property (point) 'path))
                         )
-                     ;; do it to it (and keep going if there are problems with one)
+                     ;; do it to it (and keep going if there are problems)
                      (condition-case nil
                          (eval (read dcb-code))
                        (error
