@@ -37,6 +37,10 @@
 ;;  ;; Brings up the interactive buffer restore menu
 ;;  (desktop-recover-interactive)
 
+;;  For finer-grained control you might add the standard keybindings
+;;  to your set-up:
+;;   (desktop-recover-define-global-key-bindings "\C-c%")
+
 ;;; Code:
 
 (provide 'desktop-recover)
@@ -59,9 +63,11 @@
   "The table-of-contents for the documentation.
 Several variables \(including this one\) are defined just
 to have a convenient place to attach documentation strings:\n
-Introduction:         `desktop-recover-doc-desktop'
-Basic How-To:         `desktop-recover-doc-howto'
-Just a convenience:   `desktop-recover-doc-philosophy'
+Introduction:          `desktop-recover-doc-desktop'
+Basic How-To:          `desktop-recover-doc-howto'
+Philosophy:            `desktop-recover-doc-philosophy'
+How-to run many emacs  `desktop-recover-doc-howto-multiple-emacsen'
+Key bindings:          `desktop-recover-doc-keybindings'
 \n
 Internal documentation:
   `desktop-recover-doc-dangling-buffers'
@@ -77,11 +83,10 @@ ends\).  This is the terminology used by the package
 \"desktop.el\" \(already standard with GNU emacs\).  This
 package, \"desktop-recover.el\", works with \"desktop.el\", using
 it for interactive recovery of emacs state \(e.g. for crash
-recovery, primarily for people working over flaky network
-connections\).\n For other notes, see
-`desktop-recover-doc-toc'.")
-;; it's also likely that this can be used with project-root to
-;; implement project-specific desktops.
+recovery for people working over flaky network connections\).\n
+For other notes, see `desktop-recover-doc-toc'.")
+;; it's also likely that this can be used with things like
+;; project-root to implement project-specific desktops.
 
 (defvar desktop-recover-doc-howto ""
   "Setup:
@@ -120,25 +125,6 @@ desktop will not be automatically saved again until after you've
 hit Enter in that menu.\n
 For other notes, see `desktop-recover-doc-toc'.")
 
-(defvar desktop-recover-doc-howto-multiple-emacsen ""
- "If you feel the need to regularly run multiple emacs processes
-in parallel \(for example, I'm inclined to use one for MH-E,
-one for gnus, and a third for development work\) it's recommended
-to either only run desktop-recover.el in one emacs at a time,
-or alternately to make sure that each process is using a
-different `desktop-recover-location' location.  Note that unlike
-desktop.el, desktop-recover.el does not use lock files to prevent
-over-writing someone else's desktop file (See
-`desktop-recover-doc-philosophy').
-For other notes, see `desktop-recover-doc-toc'.")
-;; TODO finish the above?  But it's redundant with "philosophy",
-;; isn't it?
-;; And make sure these techniques all actually work.
-;; (0) manually avoid desktop auto-saves: don't hit return in recover menu. (yes)
-;; (1) different emacs init files for each
-;; (2) a wrapper script to set the variable (haven't seen this work yet).
-;; (3) a good use for a "--no-desktop" flag if I can manage it. TODO
-
 (defvar desktop-recover-doc-philosophy ""
   "In many respects desktop-recover.el works more simply than desktop.el.
 While desktop-recover.el uses desktop.el internally to save the
@@ -173,6 +159,61 @@ In order to supress saves, desktop.el code internally sets the
 function \\[desktop-recover-stop-automatic-saves] and also the
 variable `desktop-recover-suppress-save' \(an older, but still
 effective mechanism\).\n
+For other notes, see `desktop-recover-doc-toc'.")
+
+(defvar desktop-recover-doc-howto-multiple-emacsen ""
+ "If you feel the need to regularly run multiple emacs processes
+in parallel \(for example, I'm inclined to use one for MH-E,
+one for gnus, and a third for development work\) it's recommended
+to either only run desktop-recover.el in one emacs at a time,
+or alternately to make sure that each process is using a
+different `desktop-recover-location' location.  Note that unlike
+desktop.el, desktop-recover.el does not use lock files to prevent
+over-writing someone else's desktop file (See `desktop-recover-doc-philosophy').
+There are a number of techniques you might use when running
+multiple instances of emacs with desktop-recover.el enabled:
+
+ o  Manually avoid desktop saves from secondary emacsen:
+    Simply don't hit enter in the recover menu, and the
+    desktop will never be auto saved for that emacs.
+    You can kill the recover menu buffer without hurting
+    anything.
+
+ o  Initialize each emacs with a different `desktop-recover-location'
+    \(Myself, I do this with a wrapper script that launches
+    emacs\).
+
+ o  Set the `desktop-recover-suppress-save' variable for the
+    secondary emacsen.
+
+ o  \(Not yet implemented\) The \"--no-desktop\" start-up flag
+    documented for desktop.el is also respected by
+    desktop-recover.el  TODO
+For other notes, see `desktop-recover-doc-toc'.")
+
+(defvar desktop-recover-doc-keybindings ""
+  "No keybindings are expected to be required for normal operation,
+but there are some that might be useful in certain cases, which
+you can get most easily by adding this to your set-up:
+
+    \(desktop-recover-define-global-key-bindings \"\\C-c%\"\)
+
+The argument shown is the key stroke prefix, where the indicated
+\"control c percent\" is the default prefix.  With this setup,
+you would then have these keybindings:
+
+  C-c % +    desktop-recover-increase-save-period
+  C-c % -    desktop-recover-decrease-save-period
+  C-c % s    desktop-recover-save-with-danglers
+
+Normally, the desktop is saved every 3 \"auto save\" cycles
+\(i.e. with a period of 3\), but if your disk is relatively slow,
+you might prefer to save it less frequently.  The first two
+commands make it easy to experiment with different save
+frequencies, increasing the period with: C-c % -
+and decreasing it with: C-c % - \n
+If you feel the need to manually save the desktop at some
+point, you can use: C-c % s \n
 For other notes, see `desktop-recover-doc-toc'.")
 
 (defvar desktop-recover-doc-dangling-buffers ""
@@ -599,6 +640,7 @@ that order.  See: `desktop-recover-doc-philosophy'."
             (desktop-release-lock) ;; just being neat
             (desktop-remove)
             (desktop-save location)
+            (message "Saved desktop in %s" location)
             )
            (t
             (message
@@ -659,6 +701,7 @@ begin with a leading asterix."
          (desktop-list)  ;; list of lists, one row for each desktop buffer
          )
     (cond ((file-exists-p desktop-file)
+           (message "desktop-recover-interactive reading from: %s" desktop-file)
            (find-file desktop-file)
            ;; check file format version, warn if looks wrong.
            (desktop-recover-desktop-version-format)
@@ -1406,6 +1449,25 @@ Will not turn this mark on unless there really is a newer auto-save file."
   (desktop-recover-toggle-hash)
   (forward-line 1))
 
+(defun desktop-recover-define-global-key-bindings (&optional prefix)
+  "Defines some global keybindings to manually manipulate desktop saves.
+These bindings are not required for normal use, but might be convenient
+under some circumstances.  The standard bindings here will use the
+given PREFIX, which defaults to \"\\C-c%\" (That's control c, followed
+by the percent key). The bindings are:
+  <prefix> +    desktop-recover-increase-save-period
+  <prefix> -    desktop-recover-decrease-save-period
+  <prefix> s    desktop-recover-save-with-danglers"
+  (interactive)
+  (unless prefix (setq prefix "\C-c%"))
+  (global-set-key (format "%s+" prefix) 'desktop-recover-increase-save-period)
+  (global-set-key (format "%s-" prefix) 'desktop-recover-decrease-save-period)
+  (global-set-key (format "%ss" prefix) 'desktop-recover-save-with-danglers)
+  (message "Defined bindings for keys: + - s under the prefix %s" prefix)
+  )
+
+;; DEBUG
+;; (desktop-recover-define-global-key-bindings "\C-c'")
 
 ;;=======
 ;; recover-file *quietly*
