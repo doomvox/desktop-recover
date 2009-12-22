@@ -1,6 +1,5 @@
-The desktop-recover project is a set of extensions for the emacs
-"desktop" library with for the purpose of session management
-including crash recovery.
+The desktop-recover project uses the standard "desktop.el"
+package for session management including crash recovery.
 
 Using this system, when you re-start your emacs you're presented
 with a menu buffer, which treats what you had open as a list of
