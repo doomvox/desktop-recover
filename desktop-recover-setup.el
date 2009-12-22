@@ -19,12 +19,10 @@
 
 ;;; Commentary:
 
-;;; Set-up for the desktop.el package, and related things.
-
 ;;; This is an example of one way of using the code from the
 ;;; desktop-recover project.
 
-;;; To use, place this file (and it's relatives) in your load-path,
+;;; To use this place this file (and it's relatives) in your load-path,
 ;;; and add the line:
 ;;;
 ;;;    (load-library "desktop-recover-setup")
@@ -35,15 +33,21 @@
 (eval-when-compile
   (require 'cl))
 
-(load-library "desktop")
-(load-library "desktop-recover")
+;; Something like this is recommended to get emacs to shut-up
+;; and never ask you for a coding system.  Otherwise this can
+;; happen on *every* desktop-save triggered by the auto-save-hook:
+(prefer-coding-system 'utf-8)
 
-;; This is optional now (what's shown is the default setting)
-(setq desktop-recover-location
-      (desktop-recover-fixdir "$HOME/.emacs.d/"))
+(load-library "desktop-recover") ;; this indirectly loads desktop.el
 
-;; bind a new exit command, so that we can tell if exit was clean.
-(define-key ctl-x-map "\C-c" 'desktop-recover-save-buffers-kill-terminal)
+;; ;; Optional, defaults to "$HOME/.emacs.d"
+;;  (setq desktop-recover-location
+;;        (desktop-recover-fixdir "$HOME/.emacs.d/"))
+;; ;; Myself, I set this from a wrapper I use to launch
+;; ;; different emacsen set-up for different purposes (gnus, mh-e, etc)
 
 ;; And this brings up the interactive buffer restore menu
   (desktop-recover-interactive)
+
+
+
