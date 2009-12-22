@@ -1,8 +1,34 @@
 The desktop-recover project is a set of extensions for the emacs
-"desktop" library with the primary intent of using it for crash
-recovery purposes.
+"desktop" library with for the purpose of session management
+including crash recovery.
+
+Using this system, when you re-start your emacs you're presented
+with a menu buffer, which treats what you had open as a list of
+candidates of things you may want to open again.  You can just hit
+return to accept the defaults, or you can go through the list,
+marking or un-marking which ones you want (using the keystrokes
+"*" or "u").
+
+Once you hit return, the state of your desktop will be saved
+automatically as you continue working, and if you choose not to
+hit return, the automatic desktop save system will be left off
+for the session.
+
+Installation instructions are in the comments at the top of
+the desktop-recover.el.
+
+The desktop-recover-setup.el file shows a usage example,
+(this file is not a necessary component).
+
+Further documentation is included as the help strings for dummy
+variables which all begin with the prefix:
+"desktop-recover-doc-".  See desktop-recover-doc-toc for a
+listing of them.
 
 The primary focus here is development for GNU/Emacs version 23.
+
+I am the sole author of this code, and copyright will be re-assigned to
+the Free Software Foundation upon request.
 
 ## Copyright 2009 Joseph Brenner
 ##
