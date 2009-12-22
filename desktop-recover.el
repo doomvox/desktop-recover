@@ -36,9 +36,11 @@
 ;;  (prefer-coding-system 'utf-8)
 ;;  ;; Brings up the interactive buffer restore menu
 ;;  (desktop-recover-interactive)
+;;  ;; Note that after using this menu, your desktop will be saved
+;;  ;; automatically (triggered by the auto-save mechanism).
 
-;;  For finer-grained control you might add the standard keybindings
-;;  to your set-up:
+;;  For finer-grained control of the frequency of desktop saves,
+;;  you can add the standard keybindings to your set-up:
 ;;   (desktop-recover-define-global-key-bindings "\C-c%")
 
 ;;; Code:
@@ -113,7 +115,7 @@ mark.\n
 That's about all you need to know to get started.  There are some
 other details that you may like to know eventually: the presence of
 a newer auto-save file is indicated with a \"%\" \(next to the \"*\"\).
-These auto-saves are recovered automatically, but you can skip
+These auto-saves are recovered automatically, but you tell it to skip
 one by doing a \"%\" on that line.  If you had any temporary buffers
 that weren't saved to files, this system will automatically preserve
 them in a special temp directory: they're restored by default if
@@ -1480,7 +1482,8 @@ by the percent key). The bindings are:
 ;; recover-file *quietly*
 
 ;; Sleazy cut-and paste of a routine from files.el, so that
-;; I can yank out the "Recover auto save file?" question.
+;; I can get rid of the "Recover auto save file?" question.
+;; TODO submit a patch with a force option.
 (defun desktop-recover-recover-file (file)
   "Visit file FILE, but get contents from its last auto-save file.
 This bears an amazing resemblence to recover-file from files.el.
