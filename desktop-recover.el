@@ -1,4 +1,4 @@
-;;; desktop-recover.el ---
+;;; desktop-recover.el --- interactive menu to choose which buffers to restore
 
 ;; Copyright 2009 Joseph Brenner
 ;;
